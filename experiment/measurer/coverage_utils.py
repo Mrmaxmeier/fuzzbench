@@ -149,6 +149,9 @@ class CoverageReporter:  # pylint: disable=too-many-instance-attributes
 
     def generate_coverage_report(self):
         """Generates the coverage report and stores in bucket."""
+        # Create the report dir. llvm-cov will also create one if the dir
+        # doesn't exist but its permission mask is more restrictive (?)
+        filesystem.create_directory(self.report_dir)
         command = [
             'llvm-cov',
             'show',
@@ -167,6 +170,9 @@ class CoverageReporter:  # pylint: disable=too-many-instance-attributes
             logger.error('Coverage report generation failed for '
                          f'fuzzer: {self.fuzzer},benchmark: {self.benchmark}.')
             return
+
+        # make the report directory (recursivly) be world-readable (see above)
+        new_process.execute(["chmod", "-R", "o+r,o+X", self.report_dir])
 
         src_dir = self.report_dir
         dst_dir = exp_path.filestore(self.report_dir)
