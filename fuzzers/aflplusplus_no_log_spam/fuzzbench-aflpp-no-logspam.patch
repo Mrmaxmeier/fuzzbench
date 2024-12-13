@@ -1,0 +1,26 @@
+diff --git a/src/afl-fuzz-one.c b/src/afl-fuzz-one.c
+index 74bb8cbc..df93c0ad 100644
+--- a/src/afl-fuzz-one.c
++++ b/src/afl-fuzz-one.c
+@@ -399,7 +399,7 @@ u8 fuzz_one_original(afl_state_t *afl) {
+ 
+ #endif                                                     /* ^IGNORE_FINDS */
+ 
+-  if (likely(afl->not_on_tty)) {
++  if (likely(afl->not_on_tty) && 0) {
+ 
+     u8 time_tmp[64];
+ 
+diff --git a/src/afl-fuzz.c b/src/afl-fuzz.c
+index 70ab983c..cc36abf0 100644
+--- a/src/afl-fuzz.c
++++ b/src/afl-fuzz.c
+@@ -2650,7 +2650,7 @@ int main(int argc, char **argv_orig, char **envp) {
+ 
+       }
+ 
+-      if (unlikely(afl->not_on_tty)) {
++      if (unlikely(afl->not_on_tty) && 0) {
+ 
+         ACTF("Entering queue cycle %llu.", afl->queue_cycle);
+         fflush(stdout);
