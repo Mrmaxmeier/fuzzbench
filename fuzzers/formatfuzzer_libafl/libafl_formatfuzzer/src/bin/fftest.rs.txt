@@ -1,0 +1,36 @@
+use libafl_formatfuzzer::FormatFuzzer;
+use libloading::Library;
+
+pub fn main() {
+    let path = std::env::args().nth(1).unwrap();
+    let library =
+        unsafe { Library::new(path).expect("failed to load the provided formatfuzzer module") };
+    let mut ff = FormatFuzzer::from(&library).unwrap();
+
+    for _ in 0..5 {
+        dbg!(ff.generate_random_file().0.len());
+    }
+
+    let file = ff.generate_random_file();
+    let file1 = file.clone();
+    let seed = ff.parse(file).unwrap();
+    let file2 = ff.generate(seed.clone());
+    assert_eq!(file1, file2);
+    let file2 = ff.generate(seed);
+    assert_eq!(file1, file2);
+
+    let handle = ff.process_file(&file1.0);
+    dbg!(&handle);
+
+    for _ in 0..10 {
+        let mutated_input = ff.one_smart_mutation(&handle);
+        eprintln!("mutation info:");
+        eprintln!("{}", ff.get_mutation_info());
+        dbg!(mutated_input.0.len());
+        if mutated_input.0.is_empty() {
+            continue;
+        }
+        let seed = ff.parse(mutated_input).unwrap();
+        dbg!(seed.0.len());
+    }
+}
