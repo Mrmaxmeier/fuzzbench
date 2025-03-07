@@ -44,7 +44,7 @@ stop-end-to-end-test:
 
 include docker/generated.mk
 
-SHELL := /bin/bash
+SHELL := bash
 VENV_ACTIVATE := .venv/bin/activate
 
 ${VENV_ACTIVATE}: requirements.txt
