@@ -28,52 +28,32 @@ pub struct FormatFuzzerMetadata {
 }
 impl_serdeany!(FormatFuzzerMetadata);
 
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct FormatFuzzerStateMetadata {
-    #[serde(skip)]
-    handle: Option<FormatFuzzer<'static>>,
-}
-impl_serdeany!(FormatFuzzerStateMetadata);
+pub struct DecisionSeedWrapper<'a, 'b, T>(T, &'a FormatFuzzer<'b>);
 
-pub struct DecisionSeedWrapper<T>(T);
-
-impl<T: Named> DecisionSeedWrapper<T> {
-    fn to_seed<S>(input: &[u8], state: &mut S) -> Vec<u8>
-    where
-        S: State + HasMetadata,
-    {
-        let ff = state.metadata::<FormatFuzzerStateMetadata>().unwrap();
-        match ff.handle.as_ref().unwrap().parse(InputData(input.into())) {
+impl<'a, 'b, T: Named> DecisionSeedWrapper<'a, 'b, T> {
+    fn to_seed(&self, input: &[u8]) -> Vec<u8> {
+        match self.1.parse(InputData(input.into())) {
             Ok(x) => x.0.to_vec(),
             Err(x) => x.0.to_vec(),
         }
     }
-    fn to_input<S>(seed: &[u8], state: &mut S) -> Vec<u8>
-    where
-        S: State + HasMetadata,
-    {
-        let ff = state.metadata::<FormatFuzzerStateMetadata>().unwrap();
-        ff.handle
-            .as_ref()
-            .unwrap()
-            .generate(DecisionSeed(seed.into()))
-            .0
-            .to_vec()
+    fn to_input(&self, seed: &[u8]) -> Vec<u8> {
+        self.1.generate(DecisionSeed(seed.into())).0.to_vec()
     }
 }
 
-impl<T: Named, S> Mutator<BytesInput, S> for DecisionSeedWrapper<T>
+impl<'a, 'b, T: Named, S> Mutator<BytesInput, S> for DecisionSeedWrapper<'a, 'b, T>
 where
-    for<'a> T: Mutator<BytesInput, S>,
+    for<'c> T: Mutator<BytesInput, S>,
     S: State + HasMetadata,
 {
     fn mutate(&mut self, state: &mut S, input: &mut BytesInput) -> Result<MutationResult, Error> {
         // let mapped = &mut (self.mapper)(input);
-        let mut decision_seed = BytesInput::new(Self::to_seed(input.bytes(), state));
+        let mut decision_seed = BytesInput::new(self.to_seed(input.bytes()));
         match self.0.mutate(state, &mut decision_seed) {
             Ok(MutationResult::Mutated) => {
                 input.drain(..);
-                input.extend(&Self::to_input(decision_seed.bytes(), state));
+                input.extend(&self.to_input(decision_seed.bytes()));
                 Ok(MutationResult::Mutated)
             }
             res => res,
@@ -81,64 +61,68 @@ where
     }
 }
 
-impl<T: Named> Named for DecisionSeedWrapper<T> {
+impl<T: Named> Named for DecisionSeedWrapper<'_, '_, T> {
     fn name(&self) -> &Cow<'static, str> {
-        &self.0.name()
+        self.0.name()
     }
 }
 
-struct DecisionSeedMapper;
-impl<T> MappingFunctor<T> for DecisionSeedMapper {
-    type Output = DecisionSeedWrapper<T>;
+struct DecisionSeedMapper<'a, 'b>(&'a FormatFuzzer<'b>);
+impl<'a, 'b, T> MappingFunctor<T> for DecisionSeedMapper<'a, 'b> {
+    type Output = DecisionSeedWrapper<'a, 'b, T>;
 
     fn apply(&mut self, from: T) -> Self::Output {
-        DecisionSeedWrapper(from)
+        DecisionSeedWrapper(from, self.0)
     }
 }
 
-type DecisionSeedHavocMutations = tuple_list_type!(
-    DecisionSeedWrapper<I2SRandReplace>,
-    DecisionSeedWrapper<mutators::BitFlipMutator>,
-    DecisionSeedWrapper<mutators::ByteFlipMutator>,
-    DecisionSeedWrapper<mutators::ByteIncMutator>,
-    DecisionSeedWrapper<mutators::ByteDecMutator>,
-    DecisionSeedWrapper<mutators::ByteNegMutator>,
-    DecisionSeedWrapper<mutators::ByteRandMutator>,
-    DecisionSeedWrapper<mutators::ByteAddMutator>,
-    DecisionSeedWrapper<mutators::WordAddMutator>,
-    DecisionSeedWrapper<mutators::DwordAddMutator>,
-    DecisionSeedWrapper<mutators::QwordAddMutator>,
-    DecisionSeedWrapper<mutators::ByteInterestingMutator>,
-    DecisionSeedWrapper<mutators::WordInterestingMutator>,
-    DecisionSeedWrapper<mutators::DwordInterestingMutator>,
-    DecisionSeedWrapper<mutators::BytesDeleteMutator>,
-    DecisionSeedWrapper<mutators::BytesDeleteMutator>,
-    DecisionSeedWrapper<mutators::BytesDeleteMutator>,
-    DecisionSeedWrapper<mutators::BytesDeleteMutator>,
-    DecisionSeedWrapper<mutators::BytesExpandMutator>,
-    DecisionSeedWrapper<mutators::BytesInsertMutator>,
-    DecisionSeedWrapper<mutators::BytesRandInsertMutator>,
-    DecisionSeedWrapper<mutators::BytesSetMutator>,
-    DecisionSeedWrapper<mutators::BytesRandSetMutator>,
-    DecisionSeedWrapper<mutators::BytesCopyMutator>,
-    DecisionSeedWrapper<mutators::BytesInsertCopyMutator>,
-    DecisionSeedWrapper<mutators::BytesSwapMutator>,
-    DecisionSeedWrapper<mutators::CrossoverInsertMutator>,
-    DecisionSeedWrapper<mutators::CrossoverReplaceMutator>,
+type DecisionSeedHavocMutations<'a, 'b> = tuple_list_type!(
+    DecisionSeedWrapper<'a, 'b, I2SRandReplace>,
+    DecisionSeedWrapper<'a, 'b, mutators::BitFlipMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::ByteFlipMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::ByteIncMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::ByteDecMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::ByteNegMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::ByteRandMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::ByteAddMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::WordAddMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::DwordAddMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::QwordAddMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::ByteInterestingMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::WordInterestingMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::DwordInterestingMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::BytesDeleteMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::BytesDeleteMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::BytesDeleteMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::BytesDeleteMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::BytesExpandMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::BytesInsertMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::BytesRandInsertMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::BytesSetMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::BytesRandSetMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::BytesCopyMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::BytesInsertCopyMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::BytesSwapMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::CrossoverInsertMutator>,
+    DecisionSeedWrapper<'a, 'b, mutators::CrossoverReplaceMutator>,
 );
 
-pub fn decision_seed_mutations() -> DecisionSeedHavocMutations {
-    tuple_list!(I2SRandReplace).map(DecisionSeedMapper).merge(
-        // tuple_list_type!(DecisionSeedWrapper<I2SRandReplace>) {
-        havoc_mutations().map(DecisionSeedMapper),
-    )
+pub fn decision_seed_mutations<'a, 'b>(
+    ff: &'a FormatFuzzer<'b>,
+) -> DecisionSeedHavocMutations<'a, 'b> {
+    tuple_list!(I2SRandReplace)
+        .map(DecisionSeedMapper(ff))
+        .merge(
+            // tuple_list_type!(DecisionSeedWrapper<I2SRandReplace>) {
+            havoc_mutations().map(DecisionSeedMapper(ff)),
+        )
     // tuple_list!(DecisionSeedWrapper(I2SRandReplace))
 }
 
-#[derive(Default, Debug)]
-pub struct OneSmartMutator;
+#[derive(Debug)]
+pub struct OneSmartMutator<'a, 'b>(&'a FormatFuzzer<'b>);
 
-impl<I, S> Mutator<I, S> for OneSmartMutator
+impl<I, S> Mutator<I, S> for OneSmartMutator<'_, '_>
 where
     S: HasRand + HasMetadata,
     I: HasMutatorBytes,
@@ -156,37 +140,36 @@ where
             .as_ref()
             .unwrap();
 
-        let ff = state.metadata::<FormatFuzzerStateMetadata>().unwrap();
-        let data = ff.handle.as_ref().unwrap().one_smart_mutation(fh);
+        let data = self.0.one_smart_mutation(fh);
         input.drain(..);
         input.extend(data.0.as_ref());
         Ok(MutationResult::Mutated)
     }
 }
 
-impl Named for OneSmartMutator {
+impl Named for OneSmartMutator<'_, '_> {
     fn name(&self) -> &Cow<'static, str> {
         static NAME: Cow<'static, str> = Cow::Borrowed("OneSmartMutator");
         &NAME
     }
 }
 
-type DecisionSeedSmartMutations = tuple_list_type!(OneSmartMutator);
-
-pub fn smart_mutations() -> DecisionSeedSmartMutations {
-    tuple_list!(OneSmartMutator)
+pub fn smart_mutations<'a, 'b>(
+    ff: &'a FormatFuzzer<'b>,
+) -> tuple_list_type!(OneSmartMutator<'a, 'b>) {
+    tuple_list!(OneSmartMutator(ff))
 }
 
 #[derive(Debug)]
-pub struct FormatFuzzerProcessStage<'a, S> {
+pub struct FormatFuzzerProcessStage<'a, 'b, S> {
     phantom: PhantomData<S>,
-    formatfuzzer: FormatFuzzer<'a>,
+    formatfuzzer: &'a FormatFuzzer<'b>,
 }
 
-impl<'a, S> FormatFuzzerProcessStage<'a, S> {
+impl<'a, 'b, S> FormatFuzzerProcessStage<'a, 'b, S> {
     /// Create a new instance of the string identification stage
     #[must_use]
-    pub fn new(formatfuzzer: FormatFuzzer<'a>) -> Self {
+    pub fn new(formatfuzzer: &'a FormatFuzzer<'b>) -> Self {
         Self {
             phantom: PhantomData,
             formatfuzzer,
@@ -225,14 +208,11 @@ impl<'a, S> FormatFuzzerProcessStage<'a, S> {
     }
 }
 
-impl<'a, S> UsesState for FormatFuzzerProcessStage<'a, S>
-where
-    S: State,
-{
+impl<S: State> UsesState for FormatFuzzerProcessStage<'_, '_, S> {
     type State = S;
 }
 
-impl<'a, S, E, EM, Z> Stage<E, EM, Z> for FormatFuzzerProcessStage<'a, S>
+impl<S, E, EM, Z> Stage<E, EM, Z> for FormatFuzzerProcessStage<'_, '_, S>
 where
     S: HasCorpus + State + HasCurrentTestcase + UsesInput<Input = BytesInput>,
     S::Corpus: Corpus<Input = BytesInput>,

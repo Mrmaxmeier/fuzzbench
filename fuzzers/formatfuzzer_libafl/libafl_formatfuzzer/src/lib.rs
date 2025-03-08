@@ -174,7 +174,8 @@ pub fn libafl_main() {
     };
     let ff = FormatFuzzer::from(&library).unwrap();
 
-    fuzz(out_dir, crashes, in_dir, tokens, timeout, ff).expect("An error occurred while fuzzing");
+    fuzz(out_dir, crashes, in_dir, tokens, timeout, Some(ff))
+        .expect("An error occurred while fuzzing");
 }
 
 fn run_testcases(filenames: &[&str]) {
@@ -207,7 +208,7 @@ fn fuzz(
     seed_dir: PathBuf,
     tokenfile: Option<PathBuf>,
     timeout: Duration,
-    formatfuzzer: FormatFuzzer,
+    formatfuzzer: Option<FormatFuzzer>,
 ) -> Result<(), Error> {
     #[cfg(unix)]
     let mut stdout_cpy = unsafe {
@@ -299,20 +300,16 @@ fn fuzz(
     // Setup a randomic Input2State stage
     let i2s = StdMutationalStage::new(StdScheduledMutator::new(tuple_list!(I2SRandReplace::new())));
 
-    let mut initial_generated_corpus = Vec::new();
-    for _ in 0..100 {
-        let inp = BytesInput::new(formatfuzzer.generate_random_file().0.to_vec());
-        initial_generated_corpus.push(inp);
-    }
-    let grammar = FormatFuzzerProcessStage::new(formatfuzzer);
+    let ff = formatfuzzer.as_ref().unwrap();
+    let grammar = FormatFuzzerProcessStage::new(ff);
 
     // Setup a MOPT mutator
     let mutator = StdMOptMutator::new(
         &mut state,
         havoc_mutations()
             .merge(tokens_mutations())
-            .merge(formatfuzzer_libafl::decision_seed_mutations())
-            .merge(formatfuzzer_libafl::smart_mutations()),
+            .merge(formatfuzzer_libafl::decision_seed_mutations(ff))
+            .merge(formatfuzzer_libafl::smart_mutations(ff)),
         7,
         5,
     )?;
@@ -398,8 +395,11 @@ fn fuzz(
         dup2(null_fd, io::stderr().as_raw_fd())?;
     }
 
-    for input in initial_generated_corpus {
-        fuzzer.evaluate_input(&mut state, &mut executor, &mut mgr, input)?;
+    if let Some(ff) = &formatfuzzer {
+        for _ in 0..100 {
+            let input = BytesInput::new(ff.generate_random_file().0.to_vec());
+            fuzzer.evaluate_input(&mut state, &mut executor, &mut mgr, input)?;
+        }
     }
 
     fuzzer.fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)?;

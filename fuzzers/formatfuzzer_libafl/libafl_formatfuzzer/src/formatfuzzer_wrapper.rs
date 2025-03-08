@@ -1,7 +1,6 @@
-#![allow(unused)]
-
 use std::{
     borrow::Cow,
+    cell::Cell,
     ffi::{CStr, CString},
 };
 
@@ -29,8 +28,6 @@ pub struct DecisionSeed<'a>(pub Cow<'a, [u8]>);
 pub struct InputData<'a>(pub Cow<'a, [u8]>);
 
 #[expect(non_camel_case_types)]
-type c_char = i8;
-#[expect(non_camel_case_types)]
 type cstr = *const i8;
 #[expect(non_camel_case_types)]
 type cbytes = *const u8;
@@ -41,8 +38,8 @@ pub struct FormatFuzzer<'a> {
     generate_random_file: Symbol<'a, unsafe extern "C" fn(*mut cbytes, *mut u32) -> ()>,
     one_smart_mutation: Symbol<'a, unsafe extern "C" fn(i32, *mut cbytes, *mut u32) -> i32>,
     mutation_info: Symbol<'a, cstr>,
-    lib: &'a Library,
-    file_ctr: usize,
+    // lib: &'a Library,
+    file_ctr: Cell<usize>,
     tmpdir: tempfile::TempDir,
 }
 
@@ -56,9 +53,9 @@ impl<'a> FormatFuzzer<'a> {
                 generate_random_file: lib.get(b"generate_random_file\0")?,
                 one_smart_mutation: lib.get(b"one_smart_mutation\0")?,
                 mutation_info: lib.get(b"mutation_info\0")?,
-                file_ctr: 0,
+                file_ctr: Cell::new(0),
                 tmpdir: tempfile::tempdir().unwrap(),
-                lib,
+                // lib,
             })
         }
     }
@@ -135,9 +132,10 @@ impl<'a> FormatFuzzer<'a> {
         }
     }
 
-    pub fn process_file(&mut self, data: &[u8]) -> FileHandle {
-        let id = self.file_ctr;
-        self.file_ctr += 1;
+    pub fn process_file(&self, data: &[u8]) -> FileHandle {
+        // let id = self.file_ctr.update(|x| x + 1);
+        let id = self.file_ctr.get();
+        self.file_ctr.set(id + 1);
 
         let mut path = self.tmpdir.path().to_path_buf();
         path.push(format!("{}.bin", id));
