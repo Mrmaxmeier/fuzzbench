@@ -14,5 +14,5 @@ for f in /templates/*.bt; do
     echo $target;
     python3 ./ffcompile /templates/$target.bt /templates/$target.cpp;
     # clang++ -c -I . -std=c++17 -g -O3 -Wall -Wno-parentheses-equality /templates/$target.cpp -o /templates/$target.o;
-    clang++ -I . -std=c++17 -flto -O3 -Wall -Wno-parentheses-equality -shared -fPIC /templates/$target.cpp fuzzer.cpp -o /templates/$target.so -lz
+    clang++ -I . -std=c++17 -g -O3 -Wall -Wno-parentheses-equality -shared -fPIC /templates/$target.cpp fuzzer.cpp -o /templates/$target.so -lz
 done
