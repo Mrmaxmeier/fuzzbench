@@ -6,6 +6,7 @@ mod formatfuzzer_wrapper;
 use formatfuzzer_libafl::FormatFuzzerProcessStage;
 pub use formatfuzzer_wrapper::FormatFuzzer;
 
+use libafl::events;
 use libafl::stages::OptionalStage;
 use mimalloc::MiMalloc;
 #[global_allocator]
@@ -16,10 +17,12 @@ use libafl_bolts::{
     current_nanos,
     os::dup2,
     rands::StdRand,
-    shmem::{ShMemProvider, StdShMemProvider},
     tuples::{tuple_list, Merge},
     AsSlice,
 };
+
+#[cfg(not(feature = "nofork"))]
+use libafl_bolts::shmem::{ShMemProvider, StdShMemProvider};
 
 use clap::{Arg, Command};
 use core::time::Duration;
@@ -37,7 +40,6 @@ use std::{
 
 use libafl::{
     corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus},
-    events::SimpleRestartingEventManager,
     executors::{inprocess::InProcessExecutor, ExitKind},
     feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
@@ -169,7 +171,10 @@ pub fn libafl_main() {
     );
 
     let library;
-    let ff = if let Ok(path) = std::env::var("AFL_CUSTOM_MUTATOR_LIBRARY") {
+    let ff = if let Some(path) = std::env::var("AFL_CUSTOM_MUTATOR_LIBRARY")
+        .ok()
+        .and_then(|x| (!x.is_empty()).then_some(x))
+    {
         library = Some(unsafe {
             libloading::Library::new(path).expect("failed to load the provided formatfuzzer module")
         });
@@ -229,23 +234,28 @@ fn fuzz(
         println!("{}", s);
     });
 
+    #[cfg(feature = "nofork")]
+    let (state, mut mgr) = (None, events::SimpleEventManager::new(monitor));
+
     // We need a shared map to store our state before a crash.
     // This way, we are able to continue fuzzing afterwards.
+    #[cfg(not(feature = "nofork"))]
     let mut shmem_provider = StdShMemProvider::new()?;
 
-    let (state, mut mgr) = match SimpleRestartingEventManager::launch(monitor, &mut shmem_provider)
-    {
-        // The restarting state will spawn the same process again as child, then restarted it each time it crashes.
-        Ok(res) => res,
-        Err(err) => match err {
-            Error::ShuttingDown => {
-                return Ok(());
-            }
-            _ => {
-                panic!("Failed to setup the restarter: {}", err);
-            }
-        },
-    };
+    #[cfg(not(feature = "nofork"))]
+    let (state, mut mgr) =
+        match events::SimpleRestartingEventManager::launch(monitor, &mut shmem_provider) {
+            // The restarting state will spawn the same process again as child, then restarted it each time it crashes.
+            Ok(res) => res,
+            Err(err) => match err {
+                Error::ShuttingDown => {
+                    return Ok(());
+                }
+                _ => {
+                    panic!("Failed to setup the restarter: {}", err);
+                }
+            },
+        };
 
     // Create an observation channel using the coverage map
     // We don't use the hitcounts (see the Cargo.toml, we use pcguard_edges)
@@ -316,6 +326,7 @@ fn fuzz(
     let mut harness = |input: &BytesInput| {
         let target = input.target_bytes();
         let buf = target.as_slice();
+        tracy_full::zone!("libfuzzer_test_one_input");
         unsafe { libfuzzer_test_one_input(buf) };
         ExitKind::Ok
     };
@@ -360,13 +371,12 @@ fn fuzz(
         .unwrap()
     });
 
-    let mutator_ff = formatfuzzer.as_ref().map(|ff| {
+    let mutator_ff = formatfuzzer.as_ref().map(|_ff| {
         StdMOptMutator::new(
             &mut state,
-            havoc_mutations()
-                .merge(tokens_mutations())
-                .merge(formatfuzzer_libafl::decision_seed_mutations(ff))
-                .merge(formatfuzzer_libafl::smart_mutations(ff)),
+            havoc_mutations().merge(tokens_mutations()),
+            //.merge(formatfuzzer_libafl::decision_seed_mutations(ff))
+            //.merge(formatfuzzer_libafl::smart_mutations(ff)),
             7,
             5,
         )
@@ -416,13 +426,15 @@ fn fuzz(
     }
 
     // Remove target ouput (logs still survive)
-    #[cfg(unix)]
+    #[cfg(all(unix, not(feature = "nofork")))]
     {
         let null_fd = file_null.as_raw_fd();
         dup2(null_fd, io::stdout().as_raw_fd())?;
         dup2(null_fd, io::stderr().as_raw_fd())?;
     }
 
+    let input = BytesInput::new(b"YELLOW SUBMARINE".to_vec());
+    fuzzer.evaluate_input(&mut state, &mut executor, &mut mgr, input)?;
     if let Some(ff) = &formatfuzzer {
         for _ in 0..100 {
             let input = BytesInput::new(ff.generate_random_file().0.to_vec());

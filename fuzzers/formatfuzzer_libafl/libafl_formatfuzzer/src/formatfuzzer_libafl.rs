@@ -4,6 +4,7 @@ use libafl::{
     corpus::Corpus,
     inputs::{BytesInput, HasMutatorBytes, HasTargetBytes, UsesInput},
     mutators::{self, havoc_mutations, I2SRandReplace, MutationResult, Mutator},
+    schedulers::{testcase_score::CorpusPowerTestcaseScore, TestcaseScore},
     stages::Stage,
     state::{HasCorpus, HasCurrentTestcase, HasRand, State, UsesState},
     Evaluator, HasMetadata,
@@ -48,6 +49,7 @@ where
     S: State + HasMetadata,
 {
     fn mutate(&mut self, state: &mut S, input: &mut BytesInput) -> Result<MutationResult, Error> {
+        tracy_full::zone!("DecisionSeedWrapper::mutate");
         // let mapped = &mut (self.mapper)(input);
         let mut decision_seed = BytesInput::new(self.to_seed(input.bytes()));
         match self.0.mutate(state, &mut decision_seed) {
@@ -133,6 +135,8 @@ where
             return Ok(MutationResult::Skipped);
         }
 
+        tracy_full::zone!("OneSmartMutator::mutate");
+
         let fh = state
             .metadata::<FormatFuzzerMetadata>()
             .unwrap()
@@ -181,6 +185,7 @@ impl<'a, 'b, S> FormatFuzzerProcessStage<'a, 'b, S> {
         S: HasCurrentTestcase,
         <S::Corpus as Corpus>::Input: HasTargetBytes,
     {
+        tracy_full::zone!("add_metadata_to_current_testcase");
         let mut tc = state.current_testcase_mut()?;
         if let Ok(md) = tc.metadata::<FormatFuzzerMetadata>() {
             if let Some(handle) = md.handle.as_ref() {
@@ -214,7 +219,7 @@ impl<S: State> UsesState for FormatFuzzerProcessStage<'_, '_, S> {
 
 impl<S, E, EM, Z> Stage<E, EM, Z> for FormatFuzzerProcessStage<'_, '_, S>
 where
-    S: HasCorpus + State + HasCurrentTestcase + UsesInput<Input = BytesInput>,
+    S: HasCorpus + State + HasCurrentTestcase + HasMetadata + UsesInput<Input = BytesInput>,
     S::Corpus: Corpus<Input = BytesInput>,
     E: UsesState<State = S>,
     EM: UsesState<State = S>,
@@ -227,10 +232,16 @@ where
         state: &mut Self::State,
         manager: &mut EM,
     ) -> Result<(), Error> {
+        tracy_full::zone!("FormatFuzzerProcessStage::perform");
         let handle = self.add_metadata_to_current_testcase(state)?;
 
+        let iterations = {
+            let mut testcase = state.current_testcase_mut()?;
+            CorpusPowerTestcaseScore::compute(state, &mut testcase)? as usize
+        };
+
         // TODO: run smart mutations
-        for _ in 0..10 {
+        for _ in 0..iterations {
             let input = self.formatfuzzer.one_smart_mutation(&handle);
             // let input = self.formatfuzzer.generate(seed);
             let input = BytesInput::new(input.0.to_vec());

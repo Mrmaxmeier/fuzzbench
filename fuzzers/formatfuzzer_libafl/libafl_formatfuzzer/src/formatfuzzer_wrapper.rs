@@ -68,6 +68,7 @@ impl<'a> FormatFuzzer<'a> {
     }
 
     pub fn generate(&self, data: DecisionSeed) -> InputData<'static> {
+        tracy_full::zone!("FormatFuzzer::generate");
         unsafe {
             let mut new_data = std::ptr::null();
             let new_size =
@@ -82,6 +83,7 @@ impl<'a> FormatFuzzer<'a> {
     }
 
     pub fn parse(&self, data: InputData) -> Result<DecisionSeed<'static>, DecisionSeed<'static>> {
+        tracy_full::zone!("FormatFuzzer::parse");
         unsafe {
             let mut new_data = std::ptr::null();
             let mut new_size = 0;
@@ -104,6 +106,7 @@ impl<'a> FormatFuzzer<'a> {
 
     // Note: This is effectively self.generate(DecisionSeed::random())
     pub fn generate_random_file(&self) -> InputData<'static> {
+        tracy_full::zone!("FormatFuzzer::generate_random_file");
         unsafe {
             let mut new_data = std::ptr::null();
             let mut new_size: u32 = 0;
@@ -115,10 +118,11 @@ impl<'a> FormatFuzzer<'a> {
     }
 
     pub fn one_smart_mutation(&self, file_handle: &FileHandle) -> InputData<'static> {
+        tracy_full::zone!("FormatFuzzer::one_smart_mutation");
         unsafe {
             let mut new_data = std::ptr::null();
             let mut new_size: u32 = 0;
-            let res = (self.one_smart_mutation)(
+            let _res = (self.one_smart_mutation)(
                 file_handle.id as i32,
                 &mut new_data as *mut _,
                 &mut new_size as *mut _,
@@ -133,6 +137,7 @@ impl<'a> FormatFuzzer<'a> {
     }
 
     pub fn process_file(&self, data: &[u8]) -> FileHandle {
+        tracy_full::zone!("FormatFuzzer::process_file");
         // let id = self.file_ctr.update(|x| x + 1);
         let id = self.file_ctr.get();
         self.file_ctr.set(id + 1);

@@ -9,6 +9,8 @@ edition = "2021"
 
 [features]
 no_link_main = ["libafl_targets/libfuzzer_no_link_main"]
+tracy = ["tracy_full/enable"]
+nofork = []
 
 [profile.release]
 lto = true
@@ -36,6 +38,16 @@ mimalloc = { version = "*", default-features = false }
 libloading = "0.8.6"
 tempfile = "3.15.0"
 serde = "1.0.217"
+
+tracy_full = { path = "/code/_others/tracy_full/", default-features = false, features = [
+    "system-tracing",
+    "context-switch-tracing",
+    "sampling",
+    "code-transfer",
+    "broadcast",
+    # "callstack-inlines",
+    # "crash-handler"
+] }
 
 [lib]
 crate-type = ["staticlib"]
