@@ -6,6 +6,7 @@ mod formatfuzzer_wrapper;
 use formatfuzzer_libafl::FormatFuzzerProcessStage;
 pub use formatfuzzer_wrapper::FormatFuzzer;
 
+use libafl::stages::OptionalStage;
 use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
@@ -167,15 +168,17 @@ pub fn libafl_main() {
             .expect("Could not parse timeout in milliseconds"),
     );
 
-    // TODO: support disabling entirely?
-    let path = std::env::var("AFL_CUSTOM_MUTATOR_LIBRARY").unwrap();
-    let library = unsafe {
-        libloading::Library::new(path).expect("failed to load the provided formatfuzzer module")
+    let library;
+    let ff = if let Ok(path) = std::env::var("AFL_CUSTOM_MUTATOR_LIBRARY") {
+        library = Some(unsafe {
+            libloading::Library::new(path).expect("failed to load the provided formatfuzzer module")
+        });
+        Some(FormatFuzzer::from(library.as_ref().unwrap()).unwrap())
+    } else {
+        None
     };
-    let ff = FormatFuzzer::from(&library).unwrap();
 
-    fuzz(out_dir, crashes, in_dir, tokens, timeout, Some(ff))
-        .expect("An error occurred while fuzzing");
+    fuzz(out_dir, crashes, in_dir, tokens, timeout, ff).expect("An error occurred while fuzzing");
 }
 
 fn run_testcases(filenames: &[&str]) {
@@ -300,23 +303,6 @@ fn fuzz(
     // Setup a randomic Input2State stage
     let i2s = StdMutationalStage::new(StdScheduledMutator::new(tuple_list!(I2SRandReplace::new())));
 
-    let ff = formatfuzzer.as_ref().unwrap();
-    let grammar = FormatFuzzerProcessStage::new(ff);
-
-    // Setup a MOPT mutator
-    let mutator = StdMOptMutator::new(
-        &mut state,
-        havoc_mutations()
-            .merge(tokens_mutations())
-            .merge(formatfuzzer_libafl::decision_seed_mutations(ff))
-            .merge(formatfuzzer_libafl::smart_mutations(ff)),
-        7,
-        5,
-    )?;
-
-    let power: StdPowerMutationalStage<_, _, BytesInput, _, _> =
-        StdPowerMutationalStage::new(mutator);
-
     // A minimization+queue policy to get testcasess from the corpus
     let scheduler = IndexesLenTimeMinimizerScheduler::new(
         &edges_observer,
@@ -357,8 +343,37 @@ fn fuzz(
         timeout * 10,
     )?);
 
+    let grammar = OptionalStage::new(formatfuzzer.as_ref().map(FormatFuzzerProcessStage::new));
+
+    let mutator_plain = StdMOptMutator::new(
+        &mut state,
+        havoc_mutations().merge(tokens_mutations()),
+        7,
+        5,
+    )?;
+
+    let mutator_ff = formatfuzzer.as_ref().map(|ff| {
+        StdMOptMutator::new(
+            &mut state,
+            havoc_mutations()
+                .merge(tokens_mutations())
+                .merge(formatfuzzer_libafl::decision_seed_mutations(ff))
+                .merge(formatfuzzer_libafl::smart_mutations(ff)),
+            7,
+            5,
+        )
+        .unwrap()
+    });
+
+    let power_plain = OptionalStage::new(
+        formatfuzzer
+            .is_none()
+            .then(|| StdPowerMutationalStage::new(mutator_plain)),
+    );
+    let power_ff = OptionalStage::new(mutator_ff.map(StdPowerMutationalStage::new));
+
     // The order of the stages matter!
-    let mut stages = tuple_list!(calibration, tracing, i2s, grammar, power);
+    let mut stages = tuple_list!(calibration, tracing, i2s, grammar, power_plain, power_ff);
 
     // Read tokens
     if state.metadata_map().get::<Tokens>().is_none() {
