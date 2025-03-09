@@ -39,15 +39,7 @@ libloading = "0.8.6"
 tempfile = "3.15.0"
 serde = "1.0.217"
 
-tracy_full = { path = "/code/_others/tracy_full/", default-features = false, features = [
-    "system-tracing",
-    "context-switch-tracing",
-    "sampling",
-    "code-transfer",
-    "broadcast",
-    # "callstack-inlines",
-    # "crash-handler"
-] }
+tracy_full = "1.11.0"
 
 [lib]
 crate-type = ["staticlib"]

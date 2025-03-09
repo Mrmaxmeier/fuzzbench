@@ -1047,6 +1047,8 @@ dependencies = [
 [[package]]
 name = "tracy_full"
 version = "1.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1cdb3086b49f0ca20fa1e3c4e429dd281edbb79b2e3c339946ed64d8a49daafa"
 dependencies = [
  "once_cell",
  "rustc_version",
