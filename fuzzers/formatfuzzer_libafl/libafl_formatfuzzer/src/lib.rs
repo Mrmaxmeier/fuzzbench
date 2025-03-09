@@ -343,14 +343,22 @@ fn fuzz(
         timeout * 10,
     )?);
 
-    let grammar = OptionalStage::new(formatfuzzer.as_ref().map(FormatFuzzerProcessStage::new));
+    let grammar = OptionalStage::new(
+        formatfuzzer
+            .as_ref()
+            .map(FormatFuzzerProcessStage::new)
+            .map(|x| tuple_list!(x)),
+    );
 
-    let mutator_plain = StdMOptMutator::new(
-        &mut state,
-        havoc_mutations().merge(tokens_mutations()),
-        7,
-        5,
-    )?;
+    let mutator_plain = formatfuzzer.is_none().then(|| {
+        StdMOptMutator::new(
+            &mut state,
+            havoc_mutations().merge(tokens_mutations()),
+            7,
+            5,
+        )
+        .unwrap()
+    });
 
     let mutator_ff = formatfuzzer.as_ref().map(|ff| {
         StdMOptMutator::new(
@@ -365,15 +373,20 @@ fn fuzz(
         .unwrap()
     });
 
-    let power_plain = OptionalStage::new(
-        formatfuzzer
-            .is_none()
-            .then(|| StdPowerMutationalStage::new(mutator_plain)),
-    );
-    let power_ff = OptionalStage::new(mutator_ff.map(StdPowerMutationalStage::new));
+    macro_rules! power_mutational_stage {
+        ($mutator:expr) => {
+            OptionalStage::new($mutator.map(|x| {
+                let res: StdPowerMutationalStage<_, _, BytesInput, _, _> =
+                    StdPowerMutationalStage::new(x);
+                tuple_list!(res)
+            }))
+        };
+    }
+    let power_plain = power_mutational_stage!(mutator_plain);
+    let power_ff = power_mutational_stage!(mutator_ff);
 
     // The order of the stages matter!
-    let mut stages = tuple_list!(calibration, tracing, i2s, grammar, power_plain, power_ff);
+    let mut stages = tuple_list!(calibration, tracing, i2s, grammar, power_plain, power_ff,);
 
     // Read tokens
     if state.metadata_map().get::<Tokens>().is_none() {
