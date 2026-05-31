@@ -15,7 +15,7 @@
 ARG parent_image
 FROM $parent_image
 
-RUN git clone https://github.com/llvm/llvm-project.git /llvm-project && \
+RUN git clone --filter=tree:0 https://github.com/llvm/llvm-project.git /llvm-project && \
     cd /llvm-project && \
     git checkout 5cda4dc7b4d28fcd11307d4234c513ff779a1c6f && \
     cd compiler-rt/lib/fuzzer && \
