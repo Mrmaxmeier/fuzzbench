@@ -1,3 +1,7 @@
+# setuptools>=81 dropped the bundled pkg_resources (removed after 2025-11-30),
+# which google-cloud-logging==3.1.2 still imports at module load. Pin <81 so the
+# dispatcher's fresh .venv keeps pkg_resources. See also the Makefile venv pin.
+setuptools<81
 psycopg2-binary
 
 alembic==1.8.1
