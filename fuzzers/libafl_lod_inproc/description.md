@@ -15,8 +15,8 @@ the per-execution fork/exec is ~100× faster on grammar-heavy targets.
 
 The fuzzing loop is MOpt havoc + cmplog/I2S plus a "Level of Detail" (LOD)
 grammar mutation stage with per-edge entropy-minimum feedback. The grammar is
-pinned per benchmark (see `LOD_GRAMMARS` in `fuzzer.py`); in-process coverage
-guessing (`--lod-guess`) is off by default because a crashing grammar skeleton
-would abort the process.
+pinned per benchmark (see `LOD_GRAMMARS` in `fuzzer.py`). In-process coverage
+guessing (`--lod-guess`) is on by default; set `LIBAFL_LOD_GUESS=0` to disable
+it (a crashing grammar skeleton would abort the process).
 
 `libafl_lod_inproc_disabled` is the byte-mutation control (LOD stage off).

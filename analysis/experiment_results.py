@@ -357,7 +357,8 @@ class ExperimentResults:  # pylint: disable=too-many-instance-attributes
         num_of_benchmarks = self.summary_table.shape[0]
 
         plot_filename = 'experiment_critical_difference_plot.svg'
-        self._plotter.write_critical_difference_plot(
-            average_ranks, num_of_benchmarks,
-            self._get_full_path(plot_filename))
-        return plot_filename
+        if self._plotter.write_critical_difference_plot(
+                average_ranks, num_of_benchmarks,
+                self._get_full_path(plot_filename)):
+            return plot_filename
+        return None

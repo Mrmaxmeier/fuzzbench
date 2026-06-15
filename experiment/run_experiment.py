@@ -511,6 +511,8 @@ class LocalDispatcher(BaseDispatcher):
             f'WORKER_POOL_NAME={self.config["worker_pool_name"]}')
         environment_args = [
             '-e',
+            'DOCKER_BUILDKIT=0',
+            '-e',
             'LOCAL_EXPERIMENT=True',
             '-e',
             set_instance_name_arg,
@@ -538,6 +540,13 @@ class LocalDispatcher(BaseDispatcher):
             '--rm',
             '-v',
             '/var/run/docker.sock:/var/run/docker.sock',
+            # The dispatcher image ships docker 18.09, whose client always
+            # negotiates BuildKit and breaks against podman's API socket.
+            # Bind-mount the host's podman-docker shim instead.
+            '-v',
+            '/usr/bin/docker:/usr/bin/docker:ro',
+            '-v',
+            '/usr/bin/podman:/usr/bin/podman:ro',
             '-v',
             shared_experiment_filestore_arg,
             '-v',

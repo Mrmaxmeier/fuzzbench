@@ -105,12 +105,16 @@
 
             <br>
 
+            {% if experiment.critical_difference_plot %}
             <div class="row">
                 <div class="col s7 offset-s3">
                     <img class="responsive-img materialboxed"
                          src="{{ experiment.critical_difference_plot }}">
                 </div>
             </div>
+            {% else %}
+            Critical difference diagram unavailable (Orange plotting API missing).
+            {% endif %}
 
             Note: If a fuzzer does not support all benchmarks, its ranking as
             shown in this diagram can be lower than it should be. So please
@@ -140,7 +144,7 @@
                       highest relative performance may not be 100%.<br>
                       <code> trial_relative_coverage  = trial_coverage / experiment_max_coverage</code><br>
                         </p>
-                        {{ experiment.relative_code_summary_table.render() }}
+                        {{ experiment.relative_code_summary_table.to_html() }}
                       <ul>
                           <li> Fuzzers are sorted by "FuzzerMean" (average median relative coverage), highest on the left.</li>
                           <li> Green background = highest relative median coverage.</li>
@@ -162,7 +166,7 @@
                       relative performance of each fuzzer to the <em>experiment maximum</em>.  Thus the 
                       highest relative performance may not be 100%.<br>
                       <code> trial_relative_coverage  = trial_coverage / experiment_max_coverage</code><br>
-                        {{ experiment.relative_bug_summary_table.render() }}
+                        {{ experiment.relative_bug_summary_table.to_html() }}
                       <ul>
                           <li> Fuzzers are sorted by "FuzzerMean" (average median relative coverage), highest on the left.</li>
                           <li> Green background = highest relative median coverage.</li>
@@ -178,7 +182,7 @@
                         Total unique bugs found on each benchmark
                     </div>
                     <div class="collapsible-body">
-                        {{ experiment.found_bugs_summary_table.render() }}
+                        {{ experiment.found_bugs_summary_table.to_html() }}
                       <ul>
                           <li> Fuzzers are sorted by "FuzzerSum", highest on the left.</li>
                           <li> Green background = most unique bugs found.</li>

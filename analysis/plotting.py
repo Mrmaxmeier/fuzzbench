@@ -482,16 +482,21 @@ class Plotter:
     def write_critical_difference_plot(self, average_ranks, num_of_benchmarks,
                                        image_path):
         """Writes critical difference diagram."""
-        critical_difference = Orange.evaluation.compute_CD(
-            average_ranks.values, num_of_benchmarks)
+        compute_cd = getattr(Orange.evaluation, 'compute_CD', None)
+        graph_ranks = getattr(Orange.evaluation, 'graph_ranks', None)
+        if compute_cd is None or graph_ranks is None:
+            return False
 
-        Orange.evaluation.graph_ranks(average_ranks.values, average_ranks.index,
-                                      critical_difference)
+        critical_difference = compute_cd(average_ranks.values,
+                                           num_of_benchmarks)
+        graph_ranks(average_ranks.values, average_ranks.index,
+                    critical_difference)
         fig = plt.gcf()
         try:
             fig.savefig(image_path, bbox_inches='tight')
         finally:
             plt.close(fig)
+        return True
 
     def unique_coverage_ranking_plot(self,
                                      unique_branch_cov_df_combined,

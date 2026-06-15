@@ -218,7 +218,7 @@ def _query_ids_of_measured_trials(experiment: str):
     snapshots."""
     with db_utils.session_scope() as session:
         trials_and_snapshots_query = session.query(models.Snapshot).options(
-            orm.joinedload('trial'))
+            orm.joinedload(models.Snapshot.trial))
         experiment_trials_filter = models.Snapshot.trial.has(
             experiment=experiment, preempted=False)
         experiment_trials_and_snapshots_query = (
@@ -680,15 +680,20 @@ def set_up_coverage_binary(benchmark):
     initialize_logs()
     coverage_binaries_dir = build_utils.get_coverage_binaries_dir()
     benchmark_coverage_binary_dir = coverage_binaries_dir / benchmark
-    filesystem.create_directory(benchmark_coverage_binary_dir)
+    filesystem.recreate_directory(benchmark_coverage_binary_dir)
     archive_name = f'coverage-build-{benchmark}.tar.gz'
     archive_filestore_path = exp_path.filestore(coverage_binaries_dir /
                                                 archive_name)
     filestore_utils.cp(archive_filestore_path,
                        str(benchmark_coverage_binary_dir))
     archive_path = benchmark_coverage_binary_dir / archive_name
+    extract_kwargs = {}
+    if sys.version_info >= (3, 12):
+        # Coverage archives include absolute symlinks (/src, /work); Python 3.12+
+        # rejects them unless fully_trusted is set.
+        extract_kwargs['filter'] = 'fully_trusted'
     with tarfile.open(archive_path, 'r:gz') as tar:
-        tar.extractall(benchmark_coverage_binary_dir)
+        tar.extractall(benchmark_coverage_binary_dir, **extract_kwargs)
         os.remove(archive_path)
 
 

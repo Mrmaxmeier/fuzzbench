@@ -30,12 +30,11 @@ from fuzzers import utils
 
 INPROC_REL = '/lod-sketch/magma-inproc/target/release'
 
-# Per-benchmark LOD grammar map. In-process coverage probing is fragile (a
-# grammar skeleton that crashes the target aborts the whole process), so
-# --lod-guess is OFF by default here; we pin a known-safe grammar per benchmark
-# instead. Override on a single run with the LOD_GRAMMARS env var (space-
-# separated), or opt into probing with LIBAFL_LOD_GUESS=1. Benchmarks not listed
-# (and not guessed) fall back to the pure byte-mutation baseline.
+# Per-benchmark LOD grammar map. --lod-guess is ON by default (disable with
+# LIBAFL_LOD_GUESS=0); we also pin a known-safe grammar per benchmark as
+# fallback. Override on a single run with the LOD_GRAMMARS env var (space-
+# separated). Benchmarks not listed (and not guessed) fall back to the pure
+# byte-mutation baseline.
 LOD_GRAMMARS = {
     'libpng_libpng_read_fuzzer': ['png'],
     'libjpeg-turbo_libjpeg_turbo_fuzzer': ['jpeg'],
@@ -121,9 +120,9 @@ def fuzz(input_corpus, output_corpus, target_binary):
     ]
 
     # Auto-detect the input format(s) by scoring registered LOD grammar
-    # skeletons against the target's coverage. OFF by default in-process: a
-    # skeleton that crashes the target aborts the process. Opt in explicitly.
-    if os.environ.get('LIBAFL_LOD_GUESS', '0') == '1':
+    # skeletons against the target's coverage. ON by default; set
+    # LIBAFL_LOD_GUESS=0 to disable (a crashing skeleton aborts in-process).
+    if os.environ.get('LIBAFL_LOD_GUESS', '1') == '1':
         command += ['--lod-guess']
 
     for grammar in grammars:

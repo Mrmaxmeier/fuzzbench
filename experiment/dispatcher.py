@@ -51,7 +51,8 @@ def _get_config_file_path():
 def create_work_subdirs(subdirs: List[str]):
     """Create |subdirs| in work directory."""
     for subdir in subdirs:
-        os.mkdir(os.path.join(experiment_utils.get_work_dir(), subdir))
+        os.makedirs(os.path.join(experiment_utils.get_work_dir(), subdir),
+                    exist_ok=True)
 
 
 def _initialize_experiment_in_db(experiment_config: dict):

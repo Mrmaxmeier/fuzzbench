@@ -29,6 +29,9 @@ logger = logs.Logger()  # pylint: disable=invalid-name
 
 def make(targets):
     """Invoke |make| with |targets| and return the result."""
+    # Podman's docker shim does not speak BuildKit's gRPC API; disable it so
+    # `docker build --cache-from ...` works under podman-docker.
+    os.environ['DOCKER_BUILDKIT'] = '0'
     command = ['make', '-j'] + targets
     return new_process.execute(command, cwd=utils.ROOT_DIR)
 
