@@ -67,7 +67,7 @@ for file in xpath xslt fuzz; do
         -o tests/fuzz/$file.o
 done
 
-for fuzzer in xpath xslt; do
+for fuzzer in "${FUZZ_TARGET:-xpath}"; do
     # Link with $CXX
     $CXX $CXXFLAGS \
         tests/fuzz/$fuzzer.o tests/fuzz/fuzz.o \
@@ -80,4 +80,5 @@ for fuzzer in xpath xslt; do
     zip -j $OUT/${fuzzer}_seed_corpus.zip tests/fuzz/seed/$fuzzer/*
 done
 
-cp tests/fuzz/*.dict tests/fuzz/*.xml $OUT/
+cp tests/fuzz/${FUZZ_TARGET:-xpath}.dict tests/fuzz/${FUZZ_TARGET:-xpath}.xml $OUT/ 2>/dev/null || \
+    cp tests/fuzz/xpath.dict tests/fuzz/xpath.xml $OUT/

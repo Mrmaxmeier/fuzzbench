@@ -17,7 +17,7 @@
 
 ./configure
 make -j$(nproc) clean
-make -j$(nproc) all
+make -j$(nproc) libz.a
 
 # Do not make check as there are tests that fail when compiled with MSAN.
 # make -j$(nproc) check

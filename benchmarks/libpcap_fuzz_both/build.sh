@@ -27,14 +27,8 @@ $CC $CFLAGS -I.. -c ../testprogs/fuzz/fuzz_both.c -o fuzz_both.o
 $CXX $CXXFLAGS fuzz_both.o -o $OUT/fuzz_both libpcap.a $LIB_FUZZING_ENGINE
 
 # export other associated stuff
-cd ..
-cp testprogs/fuzz/fuzz_*.options $OUT/
-# builds corpus
+cp ../testprogs/fuzz/fuzz_both.options "$OUT/"
+# builds corpus for this target only
 cd $SRC/tcpdump/
 zip -r fuzz_pcap_seed_corpus.zip tests/
-cp fuzz_pcap_seed_corpus.zip $OUT/
-cd $SRC/libpcap/testprogs/BPF
-mkdir corpus
-ls *.txt | while read i; do tail -1 $i > corpus/$i; done
-zip -r fuzz_filter_seed_corpus.zip corpus/
-cp fuzz_filter_seed_corpus.zip $OUT/
+cp fuzz_pcap_seed_corpus.zip "$OUT/${FUZZ_TARGET:-fuzz_both}_seed_corpus.zip"

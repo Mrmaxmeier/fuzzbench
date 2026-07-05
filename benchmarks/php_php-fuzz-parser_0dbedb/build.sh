@@ -28,6 +28,8 @@ if [ "$ARCHITECTURE" = "i386" ]; then
     BUILD_FLAG="--build=i686-pc-linux-gnu"
 fi
 
+FUZZ_TARGET_NAME="${FUZZ_TARGET:-php-fuzz-parser}"
+
 # build project
 ./buildconf --force
 ./configure $BUILD_FLAG \
@@ -36,44 +38,34 @@ fi
     --enable-option-checking=fatal \
     --enable-fuzzer \
     --enable-exif \
-    --enable-opcache \
     --without-pcre-jit \
     --disable-phpdbg \
     --disable-cgi \
     --with-pic
-make -j$(nproc)
+make -j$(nproc) sapi/cli/php "sapi/fuzzer/${FUZZ_TARGET_NAME}"
 
-# Generate corpuses and dictionaries.
-sapi/cli/php sapi/fuzzer/generate_all.php
+# generate_parser_corpus.php trips UBSan in zend_ini_parser during PHP startup.
+parser_corpus_dir="sapi/fuzzer/corpus/parser"
+mkdir -p "$parser_corpus_dir"
+while IFS= read -r -d '' phpt; do
+    rel="${phpt#Zend/tests/}"
+    out="$parser_corpus_dir/${rel//\//_}"
+    perl -0777 -e '
+        local $/;
+        $_ = <>;
+        exit 1 unless /--FILE--\r?\n(.*?)\r?\n--([_A-Z]+)--/s;
+        my $code = $1;
+        exit 1 if length($code) > 6144;
+        print $code;
+    ' "$phpt" > "$out" 2>/dev/null || rm -f "$out"
+    [ -s "$out" ] || rm -f "$out"
+done < <(find Zend/tests -name '*.phpt' -print0)
 
-# Copy dictionaries to expected locations.
-cp sapi/fuzzer/dict/unserialize $OUT/php-fuzz-unserialize.dict
-cp sapi/fuzzer/dict/parser $OUT/php-fuzz-parser.dict
-cp sapi/fuzzer/json.dict $OUT/php-fuzz-json.dict
+cp "sapi/fuzzer/dict/parser" "$OUT/${FUZZ_TARGET_NAME}.dict"
+cp "sapi/fuzzer/${FUZZ_TARGET_NAME}" "$OUT/"
 
-FUZZERS="php-fuzz-json
-php-fuzz-exif
-php-fuzz-unserialize
-php-fuzz-unserializehash
-php-fuzz-parser
-php-fuzz-execute"
-for fuzzerName in $FUZZERS; do
-    cp sapi/fuzzer/$fuzzerName $OUT/
-done
-
-# The JIT fuzzer is fundamentally incompatible with memory sanitizer,
-# as that would require the JIT to emit msan instrumentation itself.
-# In practice it is currently also incompatible with ubsan.
-if [ "$SANITIZER" != "memory" ] && [ "$SANITIZER" != "undefined" ]; then
-    cp sapi/fuzzer/php-fuzz-function-jit $OUT/
-    cp sapi/fuzzer/php-fuzz-tracing-jit $OUT/
-
-    # Copy opcache.so extension, which does not support static linking.
-    mkdir -p $OUT/modules
-    cp modules/opcache.so $OUT/modules
+parser_corpus="${FUZZ_TARGET_NAME#php-fuzz-}"
+if compgen -G "sapi/fuzzer/corpus/${parser_corpus}/*" > /dev/null; then
+    zip -j "$OUT/${FUZZ_TARGET_NAME}_seed_corpus.zip" \
+        sapi/fuzzer/corpus/${parser_corpus}/*
 fi
-
-# copy corpora from source
-for fuzzerName in `ls sapi/fuzzer/corpus`; do
-    zip -j $OUT/php-fuzz-${fuzzerName}_seed_corpus.zip sapi/fuzzer/corpus/${fuzzerName}/*
-done

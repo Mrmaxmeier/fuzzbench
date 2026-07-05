@@ -15,34 +15,20 @@
 #
 ################################################################################
 
+FUZZ_TARGET_NAME="${FUZZ_TARGET:-fuzz_dtlsclient}"
+
 pip3 install -r $SRC/mbedtls/scripts/basic.requirements.txt
 
-# build project
 perl scripts/config.pl set MBEDTLS_PLATFORM_TIME_ALT
 mkdir build
 cd build
 cmake -DENABLE_TESTING=OFF ..
-# build including fuzzers
-make -j$(nproc) all
-cp programs/fuzz/fuzz_* $OUT/
+cmake --build . --target "$FUZZ_TARGET_NAME" -j"$(nproc)"
 
-# build corpuses
-cd ../programs
-cp -r ../../openssl/fuzz/corpora/crl fuzz/corpuses/
-cp -r ../../openssl/fuzz/corpora/x509 fuzz/corpuses/
-cp -r ../../boringssl/fuzz/privkey_corpus fuzz/corpuses/
-cp ../../boringssl/fuzz/cert_corpus/* fuzz/corpuses/x509/
-zip -r fuzz/fuzz_x509crl_seed_corpus.zip ../tests/data_files/crl* fuzz/corpuses/crl
-zip -r fuzz/fuzz_x509crt_seed_corpus.zip ../tests/data_files/*.crt ../tests/data_files/dir*/*.crt  fuzz/corpuses/x509/
-zip -r fuzz/fuzz_x509csr_seed_corpus.zip ../tests/data_files/*.csr ../tests/data_files/*.req.*
-zip -r fuzz/fuzz_privkey_seed_corpus.zip ../tests/data_files/*.key ../tests/data_files/*.pem fuzz/corpuses/privkey_corpus
-zip -r fuzz/fuzz_pubkey_seed_corpus.zip ../tests/data_files/*.pub ../tests/data_files/*.pubkey
-zip -r fuzz/fuzz_dtlsclient_seed_corpus.zip fuzz/corpuses/dtlsclient
-zip -r fuzz/fuzz_dtlsserver_seed_corpus.zip fuzz/corpuses/dtlsserver
-zip -r fuzz/fuzz_client_seed_corpus.zip fuzz/corpuses/client
-zip -r fuzz/fuzz_server_seed_corpus.zip fuzz/corpuses/server
+cp "programs/fuzz/${FUZZ_TARGET_NAME}" "$OUT/"
+if [ -f "../programs/fuzz/${FUZZ_TARGET_NAME}.options" ]; then
+  cp "../programs/fuzz/${FUZZ_TARGET_NAME}.options" "$OUT/"
+fi
+zip -r "$OUT/${FUZZ_TARGET_NAME}_seed_corpus.zip" ../programs/fuzz/corpuses/dtlsclient
 
-cd fuzz
-# export other associated stuff
-cp *.options $OUT/
-cp fuzz_*_seed_corpus.zip $OUT/
+rm -rf "$SRC/openssl" "$SRC/boringssl"

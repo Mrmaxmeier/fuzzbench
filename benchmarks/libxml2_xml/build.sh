@@ -44,4 +44,5 @@ $CXX $CXXFLAGS \
 [ -e seed/xml ] || make seed/xml.stamp
 zip -j $OUT/xml_seed_corpus.zip seed/xml/*
 
-cp *.dict *.options $OUT/
+TARGET="${FUZZ_TARGET:-xml}"
+cp "${TARGET}.dict" "${TARGET}.options" "$OUT/"

@@ -22,9 +22,8 @@ RUN apt-get update && \
 RUN git clone \
         --depth 1 \
         --branch v252 \
-        https://github.com/systemd/systemd && \
-    cp $SRC/systemd/tools/oss-fuzz.sh $SRC/build.sh && \
-    # Move shared libraries and tweak rpath for all $ARCHITECTURE.
-    sed -i '119d;126d' $SRC/build.sh
+        https://github.com/systemd/systemd
+
+COPY build.sh $SRC/
 
 WORKDIR systemd

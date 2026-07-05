@@ -17,7 +17,8 @@
 FROM gcr.io/oss-fuzz-base/base-builder@sha256:87ca1e9e19235e731fac8de8d1892ebe8d55caf18e7aa131346fc582a2034fdd
 
 RUN apt-get update && apt-get install -y cmake ninja-build
-RUN git clone https://github.com/openthread/openthread
+RUN git clone https://github.com/openthread/openthread && \
+    git -C openthread checkout 25506997f286fdbfa72725f4cee78c922c896255
 
 WORKDIR openthread
 COPY build.sh *.options $SRC/

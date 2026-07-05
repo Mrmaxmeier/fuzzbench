@@ -30,13 +30,18 @@ fi
 
 ./config --debug enable-fuzz-libfuzzer -DPEDANTIC -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION no-shared enable-tls1_3 enable-rc5 enable-md2 enable-ec_nistp_64_gcc_128 enable-ssl3 enable-ssl3-method enable-nextprotoneg enable-weak-ssl-ciphers --with-fuzzer-lib=$WITH_FUZZER_LIB $CFLAGS -fno-sanitize=alignment $CONFIGURE_FLAGS
 
-make -j$(nproc) LDCMD="$CXX $CXXFLAGS"
+FUZZ_TARGET_NAME="${FUZZ_TARGET:-x509}"
 
-fuzzers=$(find fuzz -executable -type f '!' -name \*.py '!' -name \*-test '!' -name \*.pl)
-for f in $fuzzers; do
-	fuzzer=$(basename $f)
-	cp $f $OUT/
-	zip -j $OUT/${fuzzer}_seed_corpus.zip fuzz/corpora/${fuzzer}/*
-done
+# Build libs first, then one fuzzer. A single `make fuzz/$FUZZ_TARGET_NAME` races
+# ahead of libcrypto/libssl; combining both targets in one make -j also races.
+make -j$(nproc) build_libs LDCMD="$CXX $CXXFLAGS"
+make -j$(nproc) "fuzz/${FUZZ_TARGET_NAME}" LDCMD="$CXX $CXXFLAGS"
 
-cp fuzz/oids.txt $OUT/x509.dict
+cp "fuzz/${FUZZ_TARGET_NAME}" "$OUT/"
+zip -j "$OUT/${FUZZ_TARGET_NAME}_seed_corpus.zip" "fuzz/corpora/${FUZZ_TARGET_NAME}"/*
+cp fuzz/oids.txt "$OUT/x509.dict"
+
+# OpenSSL's default build leaves ~3GB of unit-test binaries in test/.
+rm -rf test
+find fuzz -executable -type f '!' -name \*.py '!' -name \*-test '!' -name \*.pl \
+    ! -name "${FUZZ_TARGET_NAME}" -delete
