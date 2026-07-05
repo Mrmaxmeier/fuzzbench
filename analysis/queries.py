@@ -42,7 +42,8 @@ def get_experiment_data(experiment_names, main_experiment_benchmarks=None):
             snapshots_query = snapshots_query.filter(
                 Trial.benchmark.in_(main_experiment_benchmarks))
 
-    return pd.read_sql_query(snapshots_query.statement, db_utils.engine)
+        result = session.execute(snapshots_query.statement)
+        return pd.DataFrame(result.fetchall(), columns=result.keys())
 
 
 def get_experiment_description(experiment_name):

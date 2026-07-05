@@ -44,7 +44,7 @@ RUN wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 17 && \
 # The vendored lod-sketch is edition 2024 (toolchain 1.90), same pin as the
 # forkserver integration.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-    sh -s -- -y --profile minimal --default-toolchain 1.90
+    sh -s -- -y --profile minimal --default-toolchain stable
 
 # Build the in-process LOD fuzzer toolchain. Unlike libafl_lod_fs there is no
 # AFLplusplus build: the magma-inproc libafl_cc/libafl_cxx wrappers wrap the

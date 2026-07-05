@@ -15,6 +15,7 @@
 
 import os
 import json
+import shutil
 
 from common import experiment_path as exp_path
 from common import experiment_utils as exp_utils
@@ -31,6 +32,30 @@ from experiment.build import build_utils
 logger = logs.Logger()  # pylint: disable=invalid-name
 
 COV_DIFF_QUEUE_GET_TIMEOUT = 1
+
+
+def _llvm_tool(tool_name: str) -> str:
+    """Return the LLVM tool binary to use for coverage processing."""
+    tool_dir = os.environ.get('LLVM_TOOL_DIR')
+    if tool_dir:
+        tool_path = os.path.join(tool_dir, tool_name)
+        if os.path.isfile(tool_path) and os.access(tool_path, os.X_OK):
+            return tool_path
+
+    toolchain = os.environ.get('LLVM_TOOLCHAIN')
+    if toolchain:
+        versioned = f'{tool_name}-{toolchain}'
+        if shutil.which(versioned):
+            return versioned
+
+    # Coverage binaries are built with LLVM from the OSS-Fuzz builder image,
+    # which currently uses LLVM 17. Prefer matching tools when available.
+    for version in ('17', '18', '15', '16', '19', '20', '21'):
+        versioned = f'{tool_name}-{version}'
+        if shutil.which(versioned):
+            return versioned
+
+    return tool_name
 
 
 def get_coverage_info_dir():
@@ -153,7 +178,7 @@ class CoverageReporter:  # pylint: disable=too-many-instance-attributes
         # doesn't exist but its permission mask is more restrictive (?)
         filesystem.create_directory(self.report_dir)
         command = [
-            'llvm-cov',
+            _llvm_tool('llvm-cov'),
             'show',
             '-format=html',
             f'-path-equivalence=/,{self.source_files_dir}',
@@ -230,7 +255,7 @@ def get_trial_ids(experiment: str, fuzzer: str, benchmark: str):
 
 def merge_profdata_files(src_files, dst_file):
     """Uses llvm-profdata to merge |src_files| to |dst_files|."""
-    command = ['llvm-profdata', 'merge', '-sparse']
+    command = [_llvm_tool('llvm-profdata'), 'merge', '-sparse']
     command.extend(src_files)
     command.extend(['-o', dst_file])
     result = new_process.execute(command, expect_zero=False)
@@ -270,7 +295,7 @@ def generate_json_summary(coverage_binary,
     """Generates the json summary file from |coverage_binary|
     and |profdata_file|."""
     command = [
-        'llvm-cov',
+        _llvm_tool('llvm-cov'),
         'export',
         '-format=text',
         '-num-threads=1',

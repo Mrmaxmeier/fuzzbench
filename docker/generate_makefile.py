@@ -131,7 +131,22 @@ def get_rules_for_image(name, image):
             section += '\t--build-arg ' + arg + ' \\\n'
     if 'dockerfile' in image:
         section += '\t--file ' + image['dockerfile'] + ' \\\n'
-    section += '\t' + image['context'] + '\n'
+    context = image['context']
+    # LOD in-process fuzzers COPY lod-sketch from the repo root; the default
+    # per-fuzzer context (fuzzers/{fuzzer}) cannot reach that path.
+    if name.endswith('-builder-intermediate'):
+        lod_fuzzers = (
+            'libafl_lod_inproc',
+            'libafl_lod_inproc_disabled',
+            'libafl_lod_inproc_generate_only',
+            'libafl_lod_inproc_no_level_switching',
+            'libafl_lod_inproc_single_level',
+        )
+        for lod_fuzzer in lod_fuzzers:
+            if name.startswith(lod_fuzzer + '-'):
+                context = '.'
+                break
+    section += '\t' + context + '\n'
     section += '\n'
 
     # Print run, debug, test-run and debug-builder rules if image is a runner.

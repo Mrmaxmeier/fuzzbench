@@ -28,7 +28,7 @@ import subprocess
 
 from fuzzers import utils
 
-INPROC_REL = '/lod-sketch/magma-inproc/target/release'
+INPROC_REL = '/lod-sketch/target/release'
 
 # Per-benchmark LOD grammar map. --lod-guess is ON by default (disable with
 # LIBAFL_LOD_GUESS=0); we also pin a known-safe grammar per benchmark as
@@ -36,12 +36,32 @@ INPROC_REL = '/lod-sketch/magma-inproc/target/release'
 # separated). Benchmarks not listed (and not guessed) fall back to the pure
 # byte-mutation baseline.
 LOD_GRAMMARS = {
-    'libpng_libpng_read_fuzzer': ['png'],
-    'libjpeg-turbo_libjpeg_turbo_fuzzer': ['jpeg'],
-    'vorbis_decode_fuzzer': ['ogg'],
-    'freetype2_ftfuzzer': ['ttf'],
-    'libxml2_xml': ['xml'],
+    #'libpng_libpng_read_fuzzer': ['png'],
+    #'libjpeg-turbo_libjpeg_turbo_fuzzer': ['jpeg'],
+    #'vorbis_decode_fuzzer': ['ogg'],
+    #'freetype2_ftfuzzer': ['ttf'],
+    #'libxml2_xml': ['xml'],
 }
+
+# Map fuzzbench fuzzer directory names to magma-inproc LodExperiment env spellings.
+_FUZZER_EXPERIMENT_SUFFIXES = (
+    ('disabled', 'lod-disable'),
+    ('generate_only', 'lod-generate-only'),
+    ('no_level_switching', 'lod-no-level-switching'),
+    ('single_level', 'lod-single-level'),
+)
+
+
+def _resolve_lod_experiment():
+    """Resolve the LOD experiment from env or the fuzzer directory name."""
+    experiment = os.environ.get('LIBAFL_LOD_EXPERIMENT')
+    if experiment is not None:
+        return experiment
+    fuzzer = os.environ.get('FUZZER', '')
+    for suffix, name in _FUZZER_EXPERIMENT_SUFFIXES:
+        if suffix in fuzzer:
+            return name
+    return 'lod'
 
 
 def build():
@@ -92,12 +112,7 @@ def fuzz(input_corpus, output_corpus, target_binary):
     """Run the in-process LOD fuzzer (the target binary IS the fuzzer)."""
     prepare_fuzz_environment(input_corpus)
 
-    # LOD experiment variant. Default to the full LOD pipeline; a "disabled"
-    # fuzzer variant runs the pure byte-mutation baseline.
-    experiment = os.environ.get('LIBAFL_LOD_EXPERIMENT')
-    if experiment is None:
-        experiment = ('lod-disable'
-                      if 'disabled' in os.environ.get('FUZZER', '') else 'lod')
+    experiment = _resolve_lod_experiment()
 
     # Resolve the grammar list: explicit override, else the per-benchmark map.
     benchmark = os.environ.get('BENCHMARK', '')

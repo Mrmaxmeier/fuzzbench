@@ -31,9 +31,6 @@ seaborn==0.13.2
 sqlalchemy==1.4.41
 protobuf==3.20.3
 
-# Hotfix
-setuptools==81
-
 # Needed for development.
 pylint==2.15.4
 pytype==2024.10.11

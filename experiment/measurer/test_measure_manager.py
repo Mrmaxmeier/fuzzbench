@@ -90,8 +90,9 @@ def test_get_current_coverage_no_file(fs, experiment):
     assert not covered_branches
 
 
+@mock.patch('experiment.measurer.coverage_utils._llvm_tool', side_effect=lambda name: name)
 @mock.patch('common.new_process.execute')
-def test_generate_profdata_create(mocked_execute, experiment, fs):
+def test_generate_profdata_create(mocked_execute, _, experiment, fs):
     """Tests that generate_profdata can run the correct command."""
     mocked_execute.return_value = new_process.ProcessResult(0, '', False)
     snapshot_measurer = measure_manager.SnapshotMeasurer(
@@ -112,8 +113,9 @@ def test_generate_profdata_create(mocked_execute, experiment, fs):
     assert args[0][0] == expected
 
 
+@mock.patch('experiment.measurer.coverage_utils._llvm_tool', side_effect=lambda name: name)
 @mock.patch('common.new_process.execute')
-def test_generate_profdata_merge(mocked_execute, experiment, fs):
+def test_generate_profdata_merge(mocked_execute, _, experiment, fs):
     """Tests that generate_profdata can run correctly with existing profraw."""
     mocked_execute.return_value = new_process.ProcessResult(0, '', False)
     snapshot_measurer = measure_manager.SnapshotMeasurer(
@@ -135,9 +137,10 @@ def test_generate_profdata_merge(mocked_execute, experiment, fs):
     assert args[0][0] == expected
 
 
+@mock.patch('experiment.measurer.coverage_utils._llvm_tool', side_effect=lambda name: name)
 @mock.patch('common.new_process.execute')
 @mock.patch('experiment.measurer.coverage_utils.get_coverage_binary')
-def test_generate_summary(mocked_get_coverage_binary, mocked_execute,
+def test_generate_summary(mocked_get_coverage_binary, mocked_execute, __,
                           experiment, fs):
     """Tests that generate_summary can run the correct command."""
     mocked_execute.return_value = new_process.ProcessResult(0, '', False)

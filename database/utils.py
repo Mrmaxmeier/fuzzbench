@@ -18,6 +18,7 @@ import threading
 from contextlib import contextmanager
 
 import sqlalchemy
+from sqlalchemy.orm import sessionmaker
 
 # pylint: disable=invalid-name,no-member
 engine = None
@@ -40,7 +41,7 @@ def initialize():
     global engine
     engine = sqlalchemy.create_engine(database_url)
     global session
-    Session = sqlalchemy.orm.sessionmaker(bind=engine)
+    Session = sessionmaker(bind=engine)
     session = Session()
     global lock
     lock = threading.Lock()
