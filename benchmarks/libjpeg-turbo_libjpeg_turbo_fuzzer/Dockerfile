@@ -19,6 +19,9 @@ FROM gcr.io/oss-fuzz-base/base-builder@sha256:87ca1e9e19235e731fac8de8d1892ebe8d
 RUN apt-get update && \
     apt-get install -y make yasm cmake
 
+# checkout_commit.py checks out the commit from benchmark.yaml, but only after
+# this Dockerfile has run. Pin the same commit here so that the seed corpus
+# below, which picks up testimages/ from this clone, is built from it too.
 RUN git clone https://github.com/libjpeg-turbo/libjpeg-turbo libjpeg-turbo && \
     git -C libjpeg-turbo checkout 3b19db4e6e7493a748369974819b4c5fa84c7614
 

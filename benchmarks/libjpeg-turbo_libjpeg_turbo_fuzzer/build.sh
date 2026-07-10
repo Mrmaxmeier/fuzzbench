@@ -16,5 +16,16 @@
 set -e
 set -u
 
-cd $SRC/libjpeg-turbo
-sh fuzz/build.sh
+FUZZ_TARGET_NAME="${FUZZ_TARGET:-libjpeg_turbo_fuzzer}"
+
+cd "$SRC/libjpeg-turbo"
+cmake . -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_STATIC=1 -DENABLE_SHARED=0 \
+    -DCMAKE_C_FLAGS_RELWITHDEBINFO="-g -DNDEBUG" \
+    -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-g -DNDEBUG" \
+    -DCMAKE_INSTALL_PREFIX="$WORK" \
+    -DWITH_FUZZ=1 -DFUZZ_BINDIR="$OUT" -DFUZZ_LIBRARY="$LIB_FUZZING_ENGINE"
+cmake --build . --target "$FUZZ_TARGET_NAME" -j"$(nproc)"
+
+cp "fuzz/${FUZZ_TARGET_NAME}" "$OUT/"
+cp "$SRC/decompress_fuzzer_seed_corpus.zip" \
+    "$OUT/${FUZZ_TARGET_NAME}_seed_corpus.zip"
