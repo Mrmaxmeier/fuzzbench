@@ -8,12 +8,31 @@ suite, even though FuzzBench only runs the single target named in
 `benchmark.yaml` (`fuzz_target`). The extra binaries and build trees remain in
 the Docker image layer produced by `fuzzer_build`.
 
-`sudo docker` is required to inspect the real image store on this machine.
+On this host the `docker` CLI is rootless podman (`~/.local/share/containers`);
+use plain `docker` (no `sudo`). `sudo docker` is a separate rootful store at
+`/var/lib/containers` and will not see user-built images.
+
+## Build pipeline (three tagged stages)
+
+Each `gcr.io/fuzzbench/builders/<fuzzer>/<benchmark>` image is built in three
+tagged stages (`docker/image_types.yaml`):
+
+| Stage | Tag | Dockerfile | What it contains |
+|-------|-----|------------|------------------|
+| 1. project-builder | `builders/benchmark/<benchmark>` | `benchmarks/<benchmark>/Dockerfile` | OSS-Fuzz base + benchmark source checkout |
+| 2. fuzzer-intermediate | `builders/<fuzzer>/<benchmark>-intermediate` | `fuzzers/<fuzzer>/builder.Dockerfile` | Toolchain on top of stage 1 (LibAFL: Rust, LLVM 17, cargo build) |
+| 3. final builder | `builders/<fuzzer>/<benchmark>` | `docker/benchmark-builder/Dockerfile` | `fuzzer_build` — compiles target, populates `/out` and `/src` build trees |
+
+`docker images` reports cumulative virtual size (all layers from base through that
+tag). Stage 3 is always ≥ stage 2 ≥ stage 1. Per-benchmark bloat from building
+extra fuzz targets lands in stage 3 (`fuzzer_build`); stages 1–2 are mostly
+shared toolchain weight.
 
 ## Plan
 
 1. **Measure** current `gcr.io/fuzzbench/builders/libafl/<benchmark>` image size
-   and key in-container directories (`/out`, `/src`, problem paths).
+   (and intermediate/project-builder tags), plus key in-container directories
+   (`/out`, `/src`, problem paths).
 2. **Adjust `benchmarks/*/build.sh`** to honor `$FUZZ_TARGET` (set by
    `fuzzers.utils.initialize_env()`):
    - Build only the requested fuzz target (not `make all` / all OSS-Fuzz targets).
@@ -21,6 +40,54 @@ the Docker image layer produced by `fuzzer_build`.
    - Remove large unneeded trees left in `$SRC` (e.g. OpenSSL `test/`).
 3. **Rebuild** the libafl builder image for each changed benchmark.
 4. **Re-measure** and record savings.
+
+## Intermediate-layer measurements
+
+_Measured 2026-07-07 with `docker images` on this machine._
+
+`builders/libafl/*` images from the slimming rebuild are no longer on disk; stage 2
+for `libafl_lod_inproc` uses the same pipeline slot and comparable toolchain
+weight (LLVM 17 + Rust + cargo build), so those `-intermediate` tags are listed
+below as a stand-in. `coverage` stage 2 is included for contrast — it adds only
+libFuzzer (~5 MB) and is essentially the same size as project-builder.
+
+| Benchmark | project-builder | libafl_lod_inproc-intermediate | coverage-intermediate | libafl_lod_inproc-final | coverage-final |
+|-----------|----------------:|-------------------------------:|----------------------:|------------------------:|---------------:|
+| `bloaty_fuzz_target` | 1.64 GB | 9.64 GB | 1.64 GB | 16.8 GB | 5.04 GB |
+| `curl_curl_fuzzer_http` | 1.66 GB | 9.64 GB | 1.66 GB | 46.9 GB | 5.54 GB |
+| `freetype2_ftfuzzer` | 2.14 GB | 9.92 GB | 2.14 GB | 16.1 GB | 3.88 GB |
+| `harfbuzz_hb-shape-fuzzer` | 1.82 GB | 9.81 GB | 1.82 GB | 15.2 GB | 4.51 GB |
+| `jsoncpp_jsoncpp_fuzzer` | 1.69 GB | 9.73 GB | 1.70 GB | 14.7 GB | 3.85 GB |
+| `lcms_cms_transform_fuzzer` | 1.67 GB | 9.70 GB | 1.68 GB | 14.1 GB | 3.85 GB |
+| `libjpeg-turbo_libjpeg_turbo_fuzzer` | 1.68 GB | 9.68 GB | 1.76 GB | 16.6 GB | 4.58 GB |
+| `libpcap_fuzz_both` | 1.69 GB | 9.69 GB | 1.69 GB | 16.7 GB | 3.85 GB |
+| `libpng_libpng_read_fuzzer` | 1.62 GB | 9.65 GB | 1.62 GB | 12.1 GB | 3.77 GB |
+| `libxml2_xml` | 1.77 GB | 9.76 GB | 1.78 GB | 14.1 GB | 3.88 GB |
+| `libxslt_xpath` | 1.70 GB | 9.72 GB | 1.71 GB | 14.2 GB | 3.91 GB |
+| `mbedtls_fuzz_dtlsclient` | **4.34 GB** | **12.3 GB** | 4.23 GB | 18 GB | 6.84 GB |
+| `openh264_decoder_fuzzer` | 2.11 GB | 9.95 GB | 2.11 GB | 12.4 GB | 4.17 GB |
+| `openssl_x509` | 1.67 GB | 9.70 GB | 1.67 GB | 13.2 GB | 12.5 GB |
+| `openthread_ot-ip6-send-fuzzer` | 1.79 GB | 9.79 GB | 1.77 GB | 15.5 GB | 4.38 GB |
+| `proj4_proj_crs_to_crs_fuzzer` | 2.18 GB | 10.2 GB | 2.19 GB | 44.4 GB | 4.97 GB |
+| `re2_fuzzer` | 1.56 GB | 9.59 GB | 1.56 GB | 12.1 GB | 3.74 GB |
+| `sqlite3_ossfuzz` | 2.17 GB | 9.96 GB | 2.18 GB | 14.8 GB | 3.88 GB |
+| `stb_stbi_read_fuzzer` | 1.57 GB | 9.60 GB | 1.57 GB | 12.1 GB | 3.72 GB |
+| `systemd_fuzz-link-parser` | 1.63 GB | 9.66 GB | 1.60 GB | 16.3 GB | 4.50 GB |
+| `vorbis_decode_fuzzer` | 1.59 GB | 9.61 GB | 1.59 GB | 14.0 GB | 3.75 GB |
+| `woff2_convert_woff2ttf_fuzzer` | 1.72 GB | 9.75 GB | 1.73 GB | 12.2 GB | 3.87 GB |
+| `zlib_zlib_uncompress_fuzzer` | 1.56 GB | 9.59 GB | 1.57 GB | 12.1 GB | 3.72 GB |
+
+**Largest intermediate on disk:** `mbedtls_fuzz_dtlsclient-intermediate` at
+**12.3 GB** (`libafl_lod_inproc`). Typical toolchain stage 2 is ~9.6–10.2 GB;
+mbedtls is an outlier because its project-builder is already 4.3 GB (clones
+openssl + boringssl in `$SRC`).
+
+**Largest project-builder:** `mbedtls_fuzz_dtlsclient` at **4.34 GB**.
+
+**Typical stage-2 toolchain delta** (intermediate − project-builder): ~8.0 GB
+(Rust + LLVM 17 + cargo release build). The `fuzzer_build` layer in stage 3 adds
+another ~3–37 GB depending on benchmark bloat (`curl` and `proj4` final images
+are the worst at 47 GB and 44 GB).
 
 ## Baseline measurements (before changes)
 
