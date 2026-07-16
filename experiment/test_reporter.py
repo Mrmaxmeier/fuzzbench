@@ -45,16 +45,16 @@ def _setup_experiment_files(fs):
         # fuzzers and put them in the |experimental| sub-directory.
         (['fuzzer-a', 'fuzzer-b'
          ], set(['fuzzer-a', 'fuzzer-b'] + reporter.get_core_fuzzers()),
-         'gs://web-reports/experimental/test-experiment'),
+         '/tmp/web-reports/experimental/test-experiment'),
         # If we provide the core fuzzers (e.g. in an official experiment),
         # then they show up in the root reports directory.
         (reporter.get_core_fuzzers(), set(
-            reporter.get_core_fuzzers()), 'gs://web-reports/test-experiment'),
+            reporter.get_core_fuzzers()), '/tmp/web-reports/test-experiment'),
         # If we provide a subset of the core fuzzers, then they are merged with
         # the other core fuzzers from older experiments and still show up in
         # the root reports directory.
         (reporter.get_core_fuzzers()[:2], set(
-            reporter.get_core_fuzzers()), 'gs://web-reports/test-experiment')
+            reporter.get_core_fuzzers()), '/tmp/web-reports/test-experiment')
     ])
 def test_output_report_filestore(experiment_fuzzers, expected_merged_fuzzers,
                                  expected_report_url, fs, experiment):

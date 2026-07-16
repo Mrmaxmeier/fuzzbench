@@ -22,8 +22,6 @@ from common import new_process
 
 LOCAL_DIR = '/dir'
 LOCAL_DIR_2 = '/dir2'
-GCS_DIR = 'gs://fake_dir'
-GCS_DIR_2 = 'gs://fake_dir_2'
 
 
 def test_using_local_filestore(fs, use_local_filestore):  # pylint: disable=invalid-name,unused-argument
@@ -84,19 +82,22 @@ def test_keyword_args(experiment):  # pylint: disable=unused-argument
     correctly."""
 
     with mock.patch('common.new_process.execute') as mocked_execute:
-        filestore_utils.rm(GCS_DIR_2, recursive=True, parallel=True)
-        mocked_execute.assert_called_with(['rm', '-r', GCS_DIR_2],
+        filestore_utils.rm(LOCAL_DIR_2, recursive=True, parallel=True)
+        mocked_execute.assert_called_with(['rm', '-r', LOCAL_DIR_2],
                                           expect_zero=True)
 
     with mock.patch('common.new_process.execute') as mocked_execute:
         mocked_execute.return_value = new_process.ProcessResult(0, '', '')
-        filestore_utils.ls(GCS_DIR_2)
-        mocked_execute.assert_called_with(['ls', '-1', GCS_DIR_2],
+        filestore_utils.ls(LOCAL_DIR_2)
+        mocked_execute.assert_called_with(['ls', '-1', LOCAL_DIR_2],
                                           expect_zero=True)
 
     with mock.patch('common.new_process.execute') as mocked_execute:
-        filestore_utils.cp(GCS_DIR, GCS_DIR_2, parallel=True)
-        mocked_execute.assert_called_with(['cp', GCS_DIR, GCS_DIR_2],
+        # Avoid create_directory() on the real filesystem; only the execute
+        # argv matters for this assertion.
+        with mock.patch('common.filesystem.create_directory'):
+            filestore_utils.cp(LOCAL_DIR, LOCAL_DIR_2, parallel=True)
+        mocked_execute.assert_called_with(['cp', LOCAL_DIR, LOCAL_DIR_2],
                                           expect_zero=True)
 
 

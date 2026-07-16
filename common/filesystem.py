@@ -20,6 +20,16 @@ import shutil
 def create_directory(directory):
     """Creates |directory|, including parent directories, if does not exist
     yet."""
+    if directory is None:
+        return
+    directory = str(directory)
+    # GCS URLs used to be valid filestore paths. Treating them as local paths
+    # creates a 'gs:' directory in the cwd (dirname('gs://bucket') == 'gs:').
+    first_component = directory.split(os.sep, 1)[0]
+    if first_component == 'gs:' or directory.startswith('gs://'):
+        raise ValueError(
+            f'Refusing to create GCS-style path as a local directory: '
+            f'{directory!r}')
     Path(directory).mkdir(parents=True, exist_ok=True)
 
 

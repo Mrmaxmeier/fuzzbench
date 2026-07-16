@@ -109,8 +109,8 @@ docker run \\
 -e OSS_FUZZ_CORPUS=False \\
 -e CUSTOM_SEED_CORPUS_DIR=None \\
 -e DOCKER_REGISTRY=gcr.io/fuzzbench \\
--e EXPERIMENT_FILESTORE=gs://experiment-data -v gs://experiment-data:gs://experiment-data \\
--e REPORT_FILESTORE=gs://web-reports -v gs://web-reports:gs://web-reports \\
+-e EXPERIMENT_FILESTORE=/tmp/experiment-data -v /tmp/experiment-data:/tmp/experiment-data \\
+-e REPORT_FILESTORE=/tmp/web-reports -v /tmp/web-reports:/tmp/web-reports \\
 -e FUZZ_TARGET={oss_fuzz_target} \\
 -e PRIVATE=False \\
 -e LOCAL_EXPERIMENT=True \\
