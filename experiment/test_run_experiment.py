@@ -192,32 +192,42 @@ def test_copy_resources_to_bucket(tmp_path):
 
     config_dir = 'config'
     config = {
-        'experiment_filestore': '/tmp/gsutil-bucket',
+        'experiment_filestore': '/tmp/filestore-bucket',
         'experiment': 'experiment',
         'benchmarks': ['libxslt_xpath'],
-        'oss_fuzz_corpus': True,
+        'oss_fuzz_corpus': False,
         'custom_seed_corpus_dir': None,
     }
     try:
         with mock.patch('common.filestore_utils.cp') as mocked_filestore_cp:
             with mock.patch(
                     'common.filestore_utils.rsync') as mocked_filestore_rsync:
-                with mock.patch('common.gsutil.cp') as mocked_gsutil_cp:
-                    run_experiment.copy_resources_to_bucket(config_dir, config)
-                    mocked_filestore_cp.assert_called_once_with(
-                        'src.tar.gz',
-                        '/tmp/gsutil-bucket/experiment/input/',
-                        parallel=True)
-                    mocked_filestore_rsync.assert_called_once_with(
-                        'config',
-                        '/tmp/gsutil-bucket/experiment/input/config',
-                        parallel=True)
-                    mocked_gsutil_cp.assert_called_once_with(
-                        'gs://libxslt-backup.clusterfuzz-external.appspot.com/'
-                        'corpus/libFuzzer/libxslt_xpath/public.zip',
-                        '/tmp/gsutil-bucket/experiment/oss_fuzz_corpora/'
-                        'libxslt_xpath.zip',
-                        expect_zero=False,
-                        parallel=True)
+                run_experiment.copy_resources_to_bucket(config_dir, config)
+                mocked_filestore_cp.assert_called_once_with(
+                    'src.tar.gz',
+                    '/tmp/filestore-bucket/experiment/input/',
+                    parallel=True)
+                mocked_filestore_rsync.assert_called_once_with(
+                    'config',
+                    '/tmp/filestore-bucket/experiment/input/config',
+                    parallel=True)
     finally:
         os.chdir(cwd)
+
+
+def test_add_oss_fuzz_corpus_unsupported():
+    """Tests that add_oss_fuzz_corpus rejects GCS backup URLs."""
+    with pytest.raises(run_experiment.ValidationError) as exception:
+        run_experiment.add_oss_fuzz_corpus('libxslt_xpath', '/corpora')
+    assert 'oss-fuzz-corpus is no longer supported' in str(exception.value)
+
+
+def test_oss_fuzz_corpus_flag_unsupported():
+    """Tests that --oss-fuzz-corpus fails validation early."""
+    config_path = os.path.join(os.path.dirname(__file__), 'test_data',
+                               'local-experiment-config.yaml')
+    with pytest.raises(SystemExit):
+        run_experiment.run_experiment_main([
+            '-e', 'test', '-c', config_path, '-b', 'libpng-1.2.56', '-f', 'afl',
+            '-o'
+        ])

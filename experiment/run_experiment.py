@@ -31,7 +31,6 @@ from common import experiment_utils
 from common import filestore_utils
 from common import filesystem
 from common import fuzzer_utils
-from common import gsutil
 from common import logs
 from common import new_process
 from common import utils
@@ -53,9 +52,6 @@ FILTER_SOURCE_REGEX = re.compile(r'('
                                  r'.*/test_data/|'
                                  r'^docker/generated.mk$|'
                                  r'^docs/)')
-_OSS_FUZZ_CORPUS_BACKUP_URL_FORMAT = (
-    'gs://{project}-backup.clusterfuzz-external.appspot.com/corpus/'
-    'libFuzzer/{fuzz_target}/public.zip')
 DEFAULT_CONCURRENT_BUILDS = 30
 
 Requirement = namedtuple('Requirement',
@@ -357,26 +353,14 @@ def start_dispatcher(config: Dict, config_dir: str):
         dispatcher.start()
 
 
-def add_oss_fuzz_corpus(benchmark, oss_fuzz_corpora_dir):
+def add_oss_fuzz_corpus(benchmark, oss_fuzz_corpora_dir):  # pylint: disable=unused-argument
     """Add latest public corpus from OSS-Fuzz as the seed corpus for various
     fuzz targets."""
-    project = benchmark_utils.get_project(benchmark)
-    fuzz_target = benchmark_utils.get_fuzz_target(benchmark)
-    oss_fuzz_corpus_target = benchmark_utils.get_oss_fuzz_corpus_target(
-        benchmark)
-
-    if oss_fuzz_corpus_target:
-        full_fuzz_target = oss_fuzz_corpus_target
-    elif not fuzz_target.startswith(project):
-        full_fuzz_target = f'{project}_{fuzz_target}'
-    else:
-        full_fuzz_target = fuzz_target
-
-    src_corpus_url = _OSS_FUZZ_CORPUS_BACKUP_URL_FORMAT.format(
-        project=project, fuzz_target=full_fuzz_target)
-    dest_corpus_url = os.path.join(oss_fuzz_corpora_dir, f'{benchmark}.zip')
-    # TODO(plan-004): Replace gsutil with a local-friendly corpus fetch.
-    gsutil.cp(src_corpus_url, dest_corpus_url, parallel=True, expect_zero=False)
+    # OSS-Fuzz corpora are published on GCS backup buckets. Local-only filestore
+    # no longer supports gsutil; HTTPS download is not implemented yet.
+    raise ValidationError(
+        '--oss-fuzz-corpus is no longer supported: GCS backup URLs require '
+        'gsutil, pending HTTPS download support.')
 
 
 def copy_resources_to_bucket(config_dir: str, config: Dict):
@@ -630,7 +614,9 @@ def run_experiment_main(args=None):
     parser.add_argument(
         '-o',
         '--oss-fuzz-corpus',
-        help='Should trials be conducted with OSS-Fuzz corpus (if available).',
+        help=('Should trials be conducted with OSS-Fuzz corpus (if available). '
+              'Unsupported: GCS backup URLs require gsutil, pending HTTPS '
+              'download support.'),
         required=False,
         default=False,
         action='store_true')
@@ -662,6 +648,10 @@ def run_experiment_main(args=None):
         parser.error(f'The sum of runners ({runners_cpus}) and measurers cpus '
                      f'({measurers_cpus}) is greater than the available cpu '
                      f'cores (os.cpu_count()).')
+
+    if args.oss_fuzz_corpus:
+        parser.error('--oss-fuzz-corpus is no longer supported: GCS backup '
+                     'URLs require gsutil, pending HTTPS download support.')
 
     if args.custom_seed_corpus_dir:
         if args.no_seeds:

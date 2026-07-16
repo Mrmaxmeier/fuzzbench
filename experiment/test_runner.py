@@ -57,7 +57,7 @@ def test_run_fuzzer_log_file(mocked_communicate, fs, environ):
 
 
 MAX_TOTAL_TIME = 100
-EXPERIMENT_FILESTORE = 'gs://bucket'
+EXPERIMENT_FILESTORE = '/bucket'
 BENCHMARK = 'benchmark-1'
 EXPERIMENT = 'experiment-name'
 TRIAL_NUM = 1
@@ -185,7 +185,7 @@ def test_record_stats_exception(mocked_log_error, trial_runner, fuzzer_module):
 def test_trial_runner(trial_runner):
     """Tests that TrialRunner gets initialized as it is supposed to."""
     assert trial_runner.gcs_sync_dir == (
-        'gs://bucket/experiment-name/'
+        '/bucket/experiment-name/'
         'experiment-folders/benchmark-1-fuzzer_a/trial-1')
 
     assert trial_runner.cycle == 0
@@ -193,16 +193,15 @@ def test_trial_runner(trial_runner):
 
 @mock.patch('common.logs.log')
 def test_save_corpus_archive(_, trial_runner, fs):
-    """Test that save_corpus_archive calls gsutil rsync on the corpus-archives
-    directory."""
+    """Test that save_corpus_archive calls filestore cp on the corpus."""
     archive_name = 'x.tar.gz'
     fs.create_file(archive_name, contents='')
     with test_utils.mock_popen_ctx_mgr() as mocked_popen:
         trial_runner.save_corpus_archive(archive_name)
         assert mocked_popen.commands == [[
-            'gsutil', 'cp', archive_name,
+            'cp', archive_name,
             posixpath.join(
-                'gs://bucket/experiment-name/experiment-folders/'
+                '/bucket/experiment-name/experiment-folders/'
                 'benchmark-1-fuzzer_a/trial-1/corpus', archive_name)
         ]]
     assert not os.path.exists(archive_name)
@@ -226,14 +225,14 @@ def test_do_sync_unchanged(mocked_debug, trial_runner, fuzzer_module):
         trial_runner.do_sync()
         assert mocked_popen.commands == [
             [
-                'gsutil', 'cp', '/corpus-archives/corpus-archive-1337.tar.gz',
-                ('gs://bucket/experiment-name/experiment-folders/'
+                'cp', '/corpus-archives/corpus-archive-1337.tar.gz',
+                ('/bucket/experiment-name/experiment-folders/'
                  'benchmark-1-fuzzer_a/trial-1/corpus/'
                  'corpus-archive-1337.tar.gz')
             ],
             [
-                'gsutil', 'rsync', '-d', '-r', '/results-copy',
-                ('gs://bucket/experiment-name/experiment-folders/'
+                'rsync', '--delete', '-r', '/results-copy/',
+                ('/bucket/experiment-name/experiment-folders/'
                  'benchmark-1-fuzzer_a/trial-1/results')
             ]
         ]
@@ -251,15 +250,15 @@ def test_do_sync_changed(mocked_execute, fs, trial_runner, fuzzer_module):
     trial_runner.do_sync()
     assert mocked_execute.call_args_list == [
         mock.call([
-            'gsutil', 'cp', '/corpus-archives/corpus-archive-1337.tar.gz',
-            ('gs://bucket/experiment-name/experiment-folders/'
+            'cp', '/corpus-archives/corpus-archive-1337.tar.gz',
+            ('/bucket/experiment-name/experiment-folders/'
              'benchmark-1-fuzzer_a/trial-1/corpus/'
              'corpus-archive-1337.tar.gz')
         ],
                   expect_zero=True),
         mock.call([
-            'gsutil', 'rsync', '-d', '-r', '/results-copy',
-            ('gs://bucket/experiment-name/experiment-folders/'
+            'rsync', '--delete', '-r', '/results-copy/',
+            ('/bucket/experiment-name/experiment-folders/'
              'benchmark-1-fuzzer_a/trial-1/results')
         ],
                   expect_zero=True)

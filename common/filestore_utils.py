@@ -13,23 +13,10 @@
 # limitations under the License.
 """Helper functions for interacting with the file storage."""
 
-from common import experiment_utils
-from common import gsutil
 from common import local_filestore
 
 GCS_GSUTIL_PREFIX = 'gs://'
 GCS_HTTP_PREFIX = 'https://storage.googleapis.com/'
-
-
-def _using_gsutil():
-    """Returns True if using Google Cloud Storage for filestore."""
-    try:
-        experiment_filestore_path = (
-            experiment_utils.get_experiment_filestore_path())
-    except KeyError:
-        return True
-
-    return is_gcs_filestore_path(experiment_filestore_path)
 
 
 def is_gcs_filestore_path(filestore_path):
@@ -48,40 +35,31 @@ def get_user_facing_path(filestore_path):
     return filestore_path.replace(GCS_GSUTIL_PREFIX, GCS_HTTP_PREFIX)
 
 
-def get_impl():
-    """Returns the implementation for filestore_utils."""
-    if _using_gsutil():
-        return gsutil
-    # Use local_filestore when not using gsutil.
-    return local_filestore
-
-
-def cp(source, destination, recursive=False, expect_zero=True, parallel=False):  # pylint: disable=invalid-name
+def cp(source, destination, recursive=False, expect_zero=True, parallel=False):  # pylint: disable=invalid-name,unused-argument
     """Copies |source| to |destination|. If |expect_zero| is True then it can
-    raise subprocess.CalledProcessError. |parallel| is only used by the gsutil
-    implementation."""
-    return get_impl().cp(source,
-                         destination,
-                         recursive=recursive,
-                         expect_zero=expect_zero,
-                         parallel=parallel)
+    raise subprocess.CalledProcessError."""
+    return local_filestore.cp(source,
+                              destination,
+                              recursive=recursive,
+                              expect_zero=expect_zero,
+                              parallel=parallel)
 
 
 def ls(path, must_exist=True):  # pylint: disable=invalid-name
     """Lists files or folders in |path| as one filename per line.
     If |must_exist| is True then it can raise subprocess.CalledProcessError."""
-    return get_impl().ls(path, must_exist=must_exist)
+    return local_filestore.ls(path, must_exist=must_exist)
 
 
-def rm(path, recursive=True, force=False, parallel=False):  # pylint: disable=invalid-name
+def rm(path, recursive=True, force=False, parallel=False):  # pylint: disable=invalid-name,unused-argument
     """Removes |path|."""
-    return get_impl().rm(path,
-                         recursive=recursive,
-                         force=force,
-                         parallel=parallel)
+    return local_filestore.rm(path,
+                              recursive=recursive,
+                              force=force,
+                              parallel=parallel)
 
 
-def rsync(  # pylint: disable=too-many-arguments
+def rsync(  # pylint: disable=too-many-arguments,unused-argument
         source,
         destination,
         delete=True,
@@ -89,17 +67,16 @@ def rsync(  # pylint: disable=too-many-arguments
         gsutil_options=None,
         options=None,
         parallel=False):
-    """Syncs |source| and |destination| folders. |gsutil_options| and |parallel|
-    are only used by the gsutil implementation."""
-    return get_impl().rsync(source,
-                            destination,
-                            delete,
-                            recursive,
-                            gsutil_options,
-                            options,
-                            parallel=parallel)
+    """Syncs |source| and |destination| folders."""
+    return local_filestore.rsync(source,
+                                 destination,
+                                 delete,
+                                 recursive,
+                                 gsutil_options,
+                                 options,
+                                 parallel=parallel)
 
 
 def cat(file_path, expect_zero=True):
     """Reads the file at |file_path| and returns the result."""
-    return get_impl().cat(file_path, expect_zero=expect_zero)
+    return local_filestore.cat(file_path, expect_zero=expect_zero)

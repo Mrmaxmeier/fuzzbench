@@ -33,19 +33,19 @@ def test_using_local_filestore(fs, use_local_filestore):  # pylint: disable=inva
 
     with mock.patch('common.new_process.execute') as mocked_execute:
         filestore_utils.cp(LOCAL_DIR, LOCAL_DIR_2, recursive=True)
-        assert 'gsutil' not in mocked_execute.call_args_list[0][0][0]
+        assert mocked_execute.call_args_list[0][0][0][0] == 'cp'
 
     with mock.patch('common.new_process.execute') as mocked_execute:
         filestore_utils.ls(LOCAL_DIR)
-        assert 'gsutil' not in mocked_execute.call_args_list[0][0][0]
+        assert mocked_execute.call_args_list[0][0][0][0] == 'ls'
 
     with mock.patch('common.new_process.execute') as mocked_execute:
         filestore_utils.rm(LOCAL_DIR, recursive=True)
-        assert 'gsutil' not in mocked_execute.call_args_list[0][0][0]
+        assert mocked_execute.call_args_list[0][0][0][0] == 'rm'
 
     with mock.patch('common.new_process.execute') as mocked_execute:
         filestore_utils.rsync(LOCAL_DIR, LOCAL_DIR_2, recursive=True)
-        assert 'gsutil' not in mocked_execute.call_args_list[0][0][0]
+        assert mocked_execute.call_args_list[0][0][0][0] == 'rsync'
 
 
 def test_parallel_take_no_effects_locally(fs, use_local_filestore):  # pylint: disable=invalid-name,unused-argument
@@ -79,54 +79,39 @@ def test_parallel_take_no_effects_locally(fs, use_local_filestore):  # pylint: d
         assert call_args_list[0] == call_args_list[1]
 
 
-def test_using_gsutil(use_gsutil):  # pylint: disable=unused-argument
-    """Tests that gsutil is used in Google Cloud running settings."""
-
-    with mock.patch('common.new_process.execute') as mocked_execute:
-        filestore_utils.cp(GCS_DIR, GCS_DIR_2, recursive=True)
-        assert 'gsutil' in mocked_execute.call_args_list[0][0][0]
-
-    with mock.patch('common.new_process.execute') as mocked_execute:
-        filestore_utils.ls(GCS_DIR)
-        assert 'gsutil' in mocked_execute.call_args_list[0][0][0]
-
-    with mock.patch('common.new_process.execute') as mocked_execute:
-        filestore_utils.rm(GCS_DIR, recursive=True)
-        assert 'gsutil' in mocked_execute.call_args_list[0][0][0]
-
-    with mock.patch('common.new_process.execute') as mocked_execute:
-        filestore_utils.rsync(GCS_DIR, GCS_DIR_2, recursive=True)
-        assert 'gsutil' in mocked_execute.call_args_list[0][0][0]
-
-
-def test_keyword_args(use_gsutil):  # pylint: disable=unused-argument
+def test_keyword_args(experiment):  # pylint: disable=unused-argument
     """Tests that keyword args, and in particular 'parallel' are handled
     correctly."""
 
     with mock.patch('common.new_process.execute') as mocked_execute:
         filestore_utils.rm(GCS_DIR_2, recursive=True, parallel=True)
-        mocked_execute.assert_called_with(
-            ['gsutil', '-m', 'rm', '-r', GCS_DIR_2], expect_zero=True)
+        mocked_execute.assert_called_with(['rm', '-r', GCS_DIR_2],
+                                          expect_zero=True)
 
     with mock.patch('common.new_process.execute') as mocked_execute:
         mocked_execute.return_value = new_process.ProcessResult(0, '', '')
         filestore_utils.ls(GCS_DIR_2)
-        mocked_execute.assert_called_with(['gsutil', 'ls', GCS_DIR_2],
+        mocked_execute.assert_called_with(['ls', '-1', GCS_DIR_2],
                                           expect_zero=True)
 
     with mock.patch('common.new_process.execute') as mocked_execute:
         filestore_utils.cp(GCS_DIR, GCS_DIR_2, parallel=True)
+        mocked_execute.assert_called_with(['cp', GCS_DIR, GCS_DIR_2],
+                                          expect_zero=True)
+
+
+def test_gsutil_options_ignored(fs, experiment):  # pylint: disable=invalid-name,unused-argument
+    """Tests that gsutil_options are ignored by the local filestore backend."""
+    fs.create_dir(LOCAL_DIR)
+    fs.create_dir(LOCAL_DIR_2)
+    with mock.patch('common.new_process.execute') as mocked_execute:
+        filestore_utils.rsync(
+            LOCAL_DIR,
+            LOCAL_DIR_2,
+            gsutil_options=['-h', 'Cache-Control:public'])
         mocked_execute.assert_called_with(
-            ['gsutil', '-m', 'cp', GCS_DIR, GCS_DIR_2], expect_zero=True)
-
-
-def test_gsutil_parallel_on(fs, use_gsutil):  # pylint: disable=invalid-name,unused-argument
-    """Tests that `parallel` is passed to gsutil execution."""
-    with mock.patch('common.gsutil.gsutil_command') as mocked_gsutil_command:
-        filestore_utils.rsync(GCS_DIR, GCS_DIR_2, parallel=True)
-        test_args_list = mocked_gsutil_command.call_args_list
-        assert 'parallel' in test_args_list[0][1]
-        assert test_args_list[0][1]['parallel'] is True
+            ['rsync', '--delete', '-r', f'{LOCAL_DIR}/', LOCAL_DIR_2],
+            expect_zero=True)
 
 
 @pytest.mark.parametrize(('filestore_path', 'expected_result'),
