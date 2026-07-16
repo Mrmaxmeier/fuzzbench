@@ -16,21 +16,8 @@
 # Script to run on creation of the dispatcher container.
 # Configures dispatcher container and runs the dispatcher script.
 
-# This needs to be before dispatcher.py runs so that it finishes initializing
-# before dispatcher.py needs it. In practice this will always happen.
-# TODO(metzman): Run this as a daemon.
-cloud_sql_proxy -instances="$CLOUD_SQL_INSTANCE_CONNECTION_NAME" &
-
-# Setup source code, virtualenv and dependencies.
-gsutil -m rsync -r "${EXPERIMENT_FILESTORE}/${EXPERIMENT}/input" "${WORK}"
+rsync -r "${EXPERIMENT_FILESTORE}/${EXPERIMENT}/input/" "${WORK}"
 mkdir ${WORK}/src
 tar -xvzf ${WORK}/src.tar.gz -C ${WORK}/src
 
-# Set up credentials locally as cloud metadata service does not scale.
-credentials_file=${WORK}/creds.json
-PYTHONPATH=${WORK}/src python3 \
-  ${WORK}/src/experiment/cloud/service_account_key.py $credentials_file $CLOUD_PROJECT
-
-# Start dispatcher.
-PYTHONPATH=${WORK}/src GOOGLE_APPLICATION_CREDENTIALS=${credentials_file} \
-    python3 "${WORK}/src/experiment/dispatcher.py"
+PYTHONPATH=${WORK}/src python3 "${WORK}/src/experiment/dispatcher.py"

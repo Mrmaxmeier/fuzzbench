@@ -14,10 +14,7 @@
 """Common utilities."""
 
 import hashlib
-import http.client
 import os
-import urllib.request
-import urllib.error
 
 ROOT_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
@@ -30,8 +27,7 @@ assert not (os.getenv('FORCE_NOT_LOCAL') and os.getenv('FORCE_LOCAL')), (
 _is_local = None
 
 if os.getenv('FORCE_NOT_LOCAL'):
-    # Allow local users to force is_local to return False. This allows things
-    # like logging to happen when running code locally.
+    # Allow tests to force is_local to return False.
     _is_local = False
 
 if os.getenv('FORCE_LOCAL'):
@@ -39,21 +35,12 @@ if os.getenv('FORCE_LOCAL'):
 
 
 def is_local():
-    """Returns True if called on a local development machine.
-    Returns False if called on Google Cloud."""
+    """Returns True on local development machines unless FORCE_NOT_LOCAL."""
     global _is_local  # pylint: disable=invalid-name
 
     if _is_local is not None:
         return _is_local
-    try:
-        # TODO(github.com/google/fuzzbench/issues/82): Get rid of this.
-        with urllib.request.urlopen('http://metadata.google.internal'):
-            pass
-        _is_local = False
-    except urllib.error.URLError:
-        _is_local = True
-    except http.client.RemoteDisconnected:
-        _is_local = True
+    _is_local = True
     return _is_local
 
 

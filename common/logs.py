@@ -17,57 +17,25 @@ from enum import Enum
 import logging
 import os
 import sys
-import time
 import traceback
-
-import google.cloud.logging
-from google.cloud.logging_v2.handlers.handlers import CloudLoggingHandler
-from google.cloud import error_reporting
 
 # Disable this check since we have a bunch of non-constant globals in this file.
 # pylint: disable=invalid-name
 
-from common import utils
-
-_default_logger = None
-_log_client = None
-_error_reporting_client = None
 _default_extras = {}
 
 LOG_LENGTH_LIMIT = 250 * 1000
 
-NUM_ATTEMPTS = 4
-RETRY_DELAY = 1
-BACKOFF = 2
-
-
-def _initialize_cloud_clients():
-    """Initialize clients for Google Cloud Logging and Error reporting."""
-    assert not utils.is_local()
-    global _log_client
-    if _log_client:
-        return
-    _log_client = google.cloud.logging.Client()
-    logging_handler = CloudLoggingHandler(_log_client)
-    logging.getLogger().addHandler(logging_handler)
-    global _error_reporting_client
-    _error_reporting_client = error_reporting.Client()
-
 
 def initialize(name='fuzzbench', default_extras=None, log_level=logging.INFO):
-    """Initializes stackdriver logging if running on Google Cloud."""
+    """Initializes stdlib logging."""
+    del name  # Kept for API compatibility.
     logging.getLogger().setLevel(log_level)
     logging.getLogger().addFilter(LengthFilter())
 
     # Don't log so much with SQLalchemy to avoid stressing the logging library.
     # See crbug.com/1044343.
     logging.getLogger('sqlalchemy').setLevel(logging.ERROR)
-
-    if utils.is_local():
-        return
-    _initialize_cloud_clients()
-    global _default_logger
-    _default_logger = _log_client.logger(name)
 
     default_extras = {} if default_extras is None else default_extras
 
@@ -106,17 +74,12 @@ def _set_experiment(extras: dict):
 
 
 class Logger:
-    """Wrapper around logging.Logger that allows it to be used like we use the
-    root logger for stackdriver."""
+    """Wrapper around logging.Logger for fuzzbench callers."""
 
     _LOGGER_NAME = 'fuzzbench'
 
     def __init__(self, default_extras=None, log_level=logging.INFO):
-        if not utils.is_local():
-            _initialize_cloud_clients()
-            self.logger = _log_client.logger(self._LOGGER_NAME)
-        else:
-            self.logger = logging.getLogger(self._LOGGER_NAME)
+        self.logger = logging.getLogger(self._LOGGER_NAME)
 
         logging.getLogger(self._LOGGER_NAME).setLevel(log_level)
         logging.getLogger(self._LOGGER_NAME).addFilter(LengthFilter())
@@ -156,72 +119,26 @@ class LogSeverity(Enum):
 
 
 def log(logger, severity, message, *args, extras=None):
-    """Log a message with severity |severity|. If using stack driver logging
-    then |extras| is also logged (in addition to default extras)."""
-    # Custom retry logic to avoid circular dependency as retry from
-    # retry.py uses log.
-    for num_try in range(1, NUM_ATTEMPTS + 1):
-        try:
-            message = str(message)
-            if args:
-                message = message % args
+    """Log a message with severity |severity|."""
+    del logger  # Kept for API compatibility.
+    message = str(message)
+    if args:
+        message = message % args
 
-            if utils.is_local():
-                if extras:
-                    message += ' Extras: ' + str(extras)
-                logging.log(severity, message)
-                return
-
-            if logger is None:
-                logger = _default_logger
-            assert logger
-
-            struct_message = {
-                'message': message,
-            }
-            all_extras = _default_extras.copy()
-            extras = extras or {}
-            all_extras.update(extras)
-            struct_message.update(all_extras)
-            severity = LogSeverity(severity).name
-            logger.log_struct(struct_message, severity=severity)
-            break
-        except Exception:  # pylint: disable=broad-except
-            # We really dont want do to do anything here except sleep here,
-            # since we cant log it out as log itself is already failing
-            time.sleep(utils.get_retry_delay(num_try, RETRY_DELAY, BACKOFF))
+    all_extras = _default_extras.copy()
+    extras = extras or {}
+    all_extras.update(extras)
+    if all_extras:
+        message += ' Extras: ' + str(all_extras)
+    logging.log(severity, message)
 
 
 def error(message, *args, extras=None, logger=None):
-    """Logs |message| to stackdriver logging and error reporting (including
-    exception if there was one."""
-
-    def _report_error_with_retries(message):
-        if utils.is_local():
-            return
-
-        # Custom retry logic to avoid circular dependency
-        # as retry from retry.py uses log
-        for num_try in range(1, NUM_ATTEMPTS + 1):
-            try:
-                _error_reporting_client.report(message)
-                break
-            except Exception:  # pylint: disable=broad-except
-                # We really dont want do to do anything here except sleep here,
-                # since we cant log it out as log itself is already failing
-                time.sleep(utils.get_retry_delay(num_try, RETRY_DELAY, BACKOFF))
-
-    if not any(sys.exc_info()):
-        _report_error_with_retries(message % args)
-        log(logger, logging.ERROR, message, *args, extras=extras)
-        return
-    # I can't figure out how to include both the message and the exception
-    # other than this having the exception message preceed the log message
-    # (without using private APIs).
-    _report_error_with_retries(traceback.format_exc() + '\nMessage: ' +
-                               message % args)
-    extras = {} if extras is None else extras
-    extras['traceback'] = traceback.format_exc()
+    """Logs |message| with severity ERROR (including exception if there was
+    one)."""
+    if any(sys.exc_info()):
+        extras = {} if extras is None else extras
+        extras['traceback'] = traceback.format_exc()
     log(logger, logging.ERROR, message, *args, extras=extras)
 
 
@@ -241,7 +158,7 @@ def debug(message, *args, extras=None, logger=None):
 
 
 class LengthFilter(logging.Filter):
-    """Filter for truncating log messages that are too long for stackdriver."""
+    """Filter for truncating log messages that are too long."""
 
     def filter(self, record):
         if len(record.msg) > LOG_LENGTH_LIMIT:

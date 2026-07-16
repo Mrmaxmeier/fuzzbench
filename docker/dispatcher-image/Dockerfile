@@ -37,11 +37,6 @@ RUN DOCKER_VERSION=29.5.3 && \
 # Install docker buildx plugin
 COPY --from=docker/buildx-bin /buildx /usr/libexec/docker/cli-plugins/docker-buildx
 
-# Install cloud sql proxy.
-RUN curl https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 > \
-    /usr/local/bin/cloud_sql_proxy
-RUN chmod +x /usr/local/bin/cloud_sql_proxy
-
 # Copy llvm-tool binaries needed for clang source-code based coverage and
 # symbolization.
 COPY --from=base-clang /usr/local/bin/llvm-cov /usr/local/bin/

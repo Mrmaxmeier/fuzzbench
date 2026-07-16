@@ -27,7 +27,8 @@ from common import yaml_utils
 from analysis import generate_report
 from analysis import data_utils
 
-CORE_FUZZERS_YAML = os.path.join(utils.ROOT_DIR, 'service', 'core-fuzzers.yaml')
+CORE_FUZZERS_YAML = os.path.join(utils.ROOT_DIR, 'experiment',
+                                 'core-fuzzers.yaml')
 
 logger = logs.Logger()  # pylint: disable=invalid-name
 

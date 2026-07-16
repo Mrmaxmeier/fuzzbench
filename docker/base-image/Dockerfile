@@ -49,18 +49,10 @@ RUN cd /tmp/ && \
 COPY ./requirements.txt /tmp
 RUN pip install -r /tmp/requirements.txt
 
-# Install dependencies required by google-cloud-cli.
+# Install common tools used by experiments.
 RUN apt-get update && \
     apt-get install -y \
     apt-transport-https \
     ca-certificates \
     rsync \
     gnupg
-
-# Install google-cloud-cli (previously named google-cloud-sdk).
-RUN echo "deb https://packages.cloud.google.com/apt cloud-sdk main" \
-    | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
-    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg \
-    | apt-key add - && \
-    apt-get update && \
-    apt-get install -y google-cloud-cli
