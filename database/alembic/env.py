@@ -25,9 +25,11 @@ from alembic import context
 # access to the values within the .ini file in use.
 config = context.config
 
-DATABASE_URL = (
-    'postgresql+psycopg2://postgres:{password}@127.0.0.1:5432'.format(
-        password=os.environ['POSTGRES_PASSWORD']))
+DATABASE_URL = os.environ.get('SQL_DATABASE_URL')
+if not DATABASE_URL:
+    raise RuntimeError(
+        'SQL_DATABASE_URL must be set for alembic '
+        '(e.g. sqlite:////path/to/local.db).')
 
 config.set_main_option('sqlalchemy.url', DATABASE_URL)
 

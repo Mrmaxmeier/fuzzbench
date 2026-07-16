@@ -17,7 +17,7 @@ import collections
 import os
 import re
 
-from clusterfuzz import stacktraces
+from third_party.clusterfuzz import stacktraces
 
 from common import logs
 from common import new_process

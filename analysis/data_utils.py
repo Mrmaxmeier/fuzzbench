@@ -13,7 +13,7 @@
 # limitations under the License.
 """Utility functions for data (frame) transformations."""
 import pandas as pd
-from clusterfuzz.stacktraces.crash_comparer import CrashComparer
+from third_party.clusterfuzz.crash_comparer import CrashComparer
 
 from analysis import stat_tests
 from common import benchmark_utils

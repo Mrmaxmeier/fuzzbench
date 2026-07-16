@@ -31,11 +31,8 @@ def initialize():
     need to call it (tests are an exception)."""
     database_url = os.getenv('SQL_DATABASE_URL')
     if not database_url:
-        postgres_password = os.getenv('POSTGRES_PASSWORD')
-        assert postgres_password, 'POSTGRES_PASSWORD needs to be set.'
-        database_url = (
-            f'postgresql+psycopg2://postgres:{postgres_password}@127.0.0.1:5432'
-        )
+        raise RuntimeError(
+            'SQL_DATABASE_URL must be set (e.g. sqlite:////path/to/local.db).')
 
     global engine
     engine = sqlalchemy.create_engine(database_url)
