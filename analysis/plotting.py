@@ -14,11 +14,11 @@
 """Plotting functions."""
 
 import numpy as np
-import Orange
 import seaborn as sns
 
 from matplotlib import colors
 from matplotlib import pyplot as plt
+from analysis import critical_difference
 from analysis import data_utils
 
 _DEFAULT_TICKS_COUNT = 12
@@ -482,12 +482,10 @@ class Plotter:
     def write_critical_difference_plot(self, average_ranks, num_of_benchmarks,
                                        image_path):
         """Writes critical difference diagram."""
-        critical_difference = Orange.evaluation.compute_CD(
-            average_ranks.values, num_of_benchmarks)
-
-        Orange.evaluation.graph_ranks(average_ranks.values, average_ranks.index,
-                                      critical_difference)
-        fig = plt.gcf()
+        cd = critical_difference.compute_cd(average_ranks.values,
+                                            num_of_benchmarks)
+        fig = critical_difference.graph_ranks(average_ranks.values,
+                                              average_ranks.index, cd)
         try:
             fig.savefig(image_path, bbox_inches='tight')
         finally:
