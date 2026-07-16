@@ -219,21 +219,24 @@ def lint(_: List[Path]) -> bool:
 
 
 def pytype(paths: List[Path]) -> bool:
-    """Run pytype on |path| if it is a python file. Return False if it fails
-    type checking."""
-    paths = [path for path in paths if is_python(path)]
-    base_command = ['python3', '-m', 'pytype']
-    success = True
+    """Deprecated name kept for CLI compatibility; runs mypy."""
+    return typecheck(paths)
 
-    # TODO(metzman): Change this to the parallel pytype when the path issue is
-    # solved.
-    for path in paths:
-        command = base_command[:]
-        command.append(path)
-        returncode = subprocess.run(command, check=False).returncode
-        if returncode != 0:
-            success = False
-    return success
+
+def typecheck(paths: List[Path]) -> bool:
+    """Run mypy on Python packages. |paths| is accepted for CLI compatibility
+    with other checks but mypy is run on the whole typed package set."""
+    del paths  # Package-level check is more reliable than per-file mypy.
+    command = [
+        'python3', '-m', 'mypy',
+        '--config-file', os.path.join(_SRC_ROOT, 'mypy.ini'),
+        '-p', 'common',
+        '-p', 'analysis',
+        '-p', 'database',
+        '-p', 'experiment',
+    ]
+    returncode = subprocess.run(command, check=False, cwd=_SRC_ROOT).returncode
+    return returncode == 0
 
 
 def yapf(paths: List[Path], validate: bool = True) -> bool:
@@ -409,7 +412,7 @@ def main() -> int:
         ('licensecheck', license_check),
         ('format', yapf),
         ('lint', lint),
-        ('typecheck', pytype),
+        ('typecheck', typecheck),
         ('test', pytest),
         ('validate_fuzzers_and_benchmarks', validate_fuzzers_and_benchmarks),
         ('test_changed_integrations', test_changed_integrations),

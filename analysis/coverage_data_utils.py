@@ -37,7 +37,8 @@ def fuzzer_and_benchmark_to_key(fuzzer: str, benchmark: str) -> str:
 def key_to_fuzzer_and_benchmark(key: str) -> Tuple[str, str]:
     """Returns a tuple containing the fuzzer and the benchmark represented by
     |key|."""
-    return tuple(key.split(' '))
+    fuzzer, benchmark = key.split(' ', 1)
+    return fuzzer, benchmark
 
 
 def get_experiment_filestore_path_for_fuzzer_benchmark(
@@ -141,11 +142,14 @@ def get_unique_branch_cov_df(unique_branch_dict: Dict,
                              fuzzer_names: List[str]) -> pd.DataFrame:
     """Returns a DataFrame where the two columns are fuzzers and the number of
     unique branches covered."""
-    fuzzers = collections.defaultdict(int)
+    fuzzers = collections.defaultdict(int)  # type: ignore[var-annotated]
     for branch in unique_branch_dict:
         for fuzzer in unique_branch_dict[branch]:
             fuzzers[fuzzer] += 1
-    dict_to_transform = {'fuzzer': [], 'unique_branches_covered': []}
+    dict_to_transform = {
+        'fuzzer': [],
+        'unique_branches_covered': []
+    }  # type: ignore[var-annotated]
     for fuzzer in fuzzer_names:
         covered_num = fuzzers[fuzzer]
         dict_to_transform['fuzzer'].append(fuzzer)

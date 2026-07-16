@@ -19,5 +19,6 @@ setuptools==80
 
 # Needed for development.
 pylint==2.15.4
-pytype==2022.10.13
+mypy==1.13.0
+types-PyYAML==6.0.12.20240917
 yapf==0.32.0

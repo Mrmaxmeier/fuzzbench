@@ -22,8 +22,7 @@ import random
 import subprocess
 import sys
 import time
-import types
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 
 from common import benchmark_config
 from common import benchmark_utils
@@ -131,13 +130,13 @@ def split_successes_and_failures(inputs: List,
     return successes, failures
 
 
-def retry_build_loop(build_func: types.FunctionType,
+def retry_build_loop(build_func: Callable,
                      inputs: List[Tuple]) -> List:
     """Calls |build_func| in parallel on |inputs|. Repeat on failures up to
     |NUM_BUILD_ATTEMPTS| times. Returns the list of inputs that |build_func| was
     called successfully on."""
     successes = []
-    num_concurrent_builds = int(os.getenv('CONCURRENT_BUILDS'))
+    num_concurrent_builds = int(os.getenv('CONCURRENT_BUILDS') or '1')
     logs.info('Concurrent builds: %d.', num_concurrent_builds)
     with mp_pool.ThreadPool(num_concurrent_builds) as pool:
         for _ in range(NUM_BUILD_ATTEMPTS):
@@ -176,7 +175,7 @@ def build_fuzzer_benchmark(fuzzer: str, benchmark: str) -> bool:
 
 
 def build_all_fuzzer_benchmarks(fuzzers: List[str],
-                                benchmarks: List[str]) -> List[str]:
+                                benchmarks: List[str]) -> List[Tuple[str, str]]:
     """Build fuzzer,benchmark images for all pairs of |fuzzers| and |benchmarks|
     in parallel. Returns a list of fuzzer,benchmark pairs that built
     successfully."""

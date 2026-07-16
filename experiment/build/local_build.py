@@ -84,4 +84,5 @@ def copy_coverage_binaries(benchmark):
 def build_fuzzer_benchmark(fuzzer: str, benchmark: str) -> bool:
     """Builds |benchmark| for |fuzzer|."""
     image_name = f'build-{fuzzer}-{benchmark}'
-    make([image_name])
+    result = make([image_name])
+    return result.retcode == 0

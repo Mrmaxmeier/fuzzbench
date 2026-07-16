@@ -16,7 +16,6 @@ on a corpus."""
 
 import os
 import tempfile
-from typing import List
 
 from common import experiment_utils
 from common import logs
@@ -39,7 +38,7 @@ MAX_TOTAL_TIME = experiment_utils.get_snapshot_seconds()
 
 
 def do_coverage_run(  # pylint: disable=too-many-locals
-        coverage_binary: str, new_units_dir: List[str],
+        coverage_binary: str, new_units_dir: str,
         profraw_file_pattern: str, crashes_dir: str):
     """Does a coverage run of |coverage_binary| on |new_units_dir|. Writes
     the result to |profraw_file_pattern|."""

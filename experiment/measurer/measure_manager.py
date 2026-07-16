@@ -164,7 +164,7 @@ def measure_all_trials(experiment: str, max_total_time: int, pool,
     # Poll the queue for snapshots and save them in batches until the pool is
     # done processing each unmeasured snapshot. Then save any remaining
     # snapshots.
-    snapshots = []
+    snapshots = []  # type: ignore[var-annotated]
     snapshots_measured = False
 
     def save_snapshots():
@@ -544,7 +544,7 @@ def get_fuzzer_stats(stats_filestore_path):
 
 def measure_trial_coverage(measure_req, max_cycle: int,
                            multiprocessing_queue: multiprocessing.Queue,
-                           region_coverage) -> models.Snapshot:
+                           region_coverage):
     """Measure the coverage obtained by |trial_num| on |benchmark| using
     |fuzzer|."""
     initialize_logs()
@@ -817,7 +817,7 @@ def measure_manager_loop(experiment: str,
             _result = pool.apply_async(local_measure_worker.measure_worker_loop)
 
         max_cycle = _time_to_cycle(max_total_time)
-        queued_snapshots = set()
+        queued_snapshots = set()  # type: ignore[var-annotated]
         while not scheduler.all_trials_ended(experiment):
             continue_inner_loop = measure_manager_inner_loop(
                 experiment, max_cycle, request_queue, response_queue,

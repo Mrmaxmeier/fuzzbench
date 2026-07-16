@@ -189,8 +189,8 @@ def schedule_loop(experiment_config: dict):
     # other issues.
     logger.info('Starting scheduler.')
     local_experiment = experiment_utils.is_local_experiment()
-    pool_args = ()
-    core_allocation = None
+    pool_args: tuple = ()
+    core_allocation: dict = {}
     runners_cpus = experiment_config['runners_cpus']
     if runners_cpus is not None:
         if local_experiment:
@@ -198,7 +198,6 @@ def schedule_loop(experiment_config: dict):
             processes = runners_cpus // runner_num_cpu_cores
             logger.info('Scheduling runners from core 0 to %d.',
                         runner_num_cpu_cores * processes - 1)
-            core_allocation = {}
             for cpu in range(0, runner_num_cpu_cores * processes,
                              runner_num_cpu_cores):
                 core_allocation[
@@ -207,6 +206,12 @@ def schedule_loop(experiment_config: dict):
         else:
             pool_args = (runners_cpus,)
 
+    # Empty allocation means "no CPU pinning".
+    if not core_allocation:
+        core_allocation_arg = None
+    else:
+        core_allocation_arg = core_allocation
+
     experiment = experiment_config['experiment']
     with multiprocessing.Pool(*pool_args) as pool:
         while not all_trials_ended(experiment):
@@ -214,7 +219,7 @@ def schedule_loop(experiment_config: dict):
             scheduling_error = False
             try:
                 started_trials = schedule(experiment_config, pool,
-                                          core_allocation)
+                                          core_allocation_arg)
             except Exception:  # pylint: disable=broad-except
                 logger.error('Error occurred during scheduling.')
                 scheduling_error = True

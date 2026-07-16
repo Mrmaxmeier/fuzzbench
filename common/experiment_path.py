@@ -23,7 +23,7 @@ def path(*path_segments) -> Path:
     return Path(experiment_utils.get_work_dir(), *path_segments)
 
 
-def filestore(path_obj: Path) -> str:
+def filestore(path_obj) -> str:
     """Returns a string with WORK_DIR replaced with |experiment_filestore_path|.
     |path_obj| should be created by path()."""
     path_str = str(path_obj)
