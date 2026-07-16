@@ -15,10 +15,10 @@
 
 import enum
 import posixpath
-import subprocess
 from typing import List, Optional
 
 from common import experiment_utils
+from common import local_instance
 from common import logs
 from common import new_process
 
@@ -54,7 +54,7 @@ def create_instance(instance_name: str,
     and with optionally provided and |startup_script|."""
 
     if experiment_utils.is_local_experiment():
-        return run_local_instance(startup_script)
+        return local_instance.run_local_instance(startup_script)
 
     command = [
         'gcloud',
@@ -124,25 +124,6 @@ def set_default_project(cloud_project: str):
     """Set default project for future gcloud and gsutil commands."""
     return new_process.execute(
         ['gcloud', 'config', 'set', 'project', cloud_project])
-
-
-def run_local_instance(startup_script: Optional[str] = None) -> bool:
-    """Does the equivalent of "create_instance" for local experiments, runs
-    |startup_script| in the background."""
-    if not startup_script:
-        return False
-    command = ['/bin/bash', startup_script]
-    try:
-        # pylint: disable=consider-using-with
-        subprocess.Popen(
-            command,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except OSError:
-        logs.error('Failed to start local instance: %s', startup_script)
-        return False
-    return True
 
 
 def create_instance_template(template_name, docker_image, env, project, zone):
