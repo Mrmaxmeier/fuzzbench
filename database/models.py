@@ -13,7 +13,6 @@
 # limitations under the License.
 """SQLAlchemy Database Models."""
 import sqlalchemy
-from sqlalchemy.ext import declarative
 from sqlalchemy import Boolean
 from sqlalchemy import Column
 from sqlalchemy import DateTime
@@ -23,8 +22,9 @@ from sqlalchemy import Integer
 from sqlalchemy import JSON
 from sqlalchemy import String
 from sqlalchemy import UnicodeText
+from sqlalchemy.orm import declarative_base
 
-Base = declarative.declarative_base()  # pylint: disable=invalid-name
+Base = declarative_base()  # pylint: disable=invalid-name
 
 
 class Experiment(Base):

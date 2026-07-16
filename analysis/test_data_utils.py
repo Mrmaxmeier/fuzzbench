@@ -354,7 +354,7 @@ def test_experiment_pivot_table():
     expected_pivot_table = pd.pivot_table(expected_data,
                                           index=['benchmark'],
                                           columns=['fuzzer'],
-                                          values='median')
+                                          values='median').astype(int)
     assert pivot_table.equals(expected_pivot_table)
 
 

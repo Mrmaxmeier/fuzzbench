@@ -264,7 +264,8 @@ def benchmark_rank_by_mean(benchmark_snapshot_df, key='edges_covered'):
     assert benchmark_snapshot_df.time.nunique() == 1, 'Not a snapshot!'
     logger.debug('Mean: %s',
                  benchmark_snapshot_df.groupby('fuzzer')[key].mean())
-    benchmark_snapshot_df = benchmark_snapshot_df.fillna(0)
+    benchmark_snapshot_df = benchmark_snapshot_df.fillna(0).infer_objects(
+        copy=False)
     means = benchmark_snapshot_df.groupby('fuzzer')[key].mean().astype(int)
     means.rename('mean cov', inplace=True)
     return means.sort_values(ascending=False)
@@ -275,7 +276,8 @@ def benchmark_rank_by_median(benchmark_snapshot_df, key='edges_covered'):
     assert benchmark_snapshot_df.time.nunique() == 1, 'Not a snapshot!'
     logger.debug('Median: %s',
                  benchmark_snapshot_df.groupby('fuzzer')[key].median())
-    benchmark_snapshot_df = benchmark_snapshot_df.fillna(0)
+    benchmark_snapshot_df = benchmark_snapshot_df.fillna(0).infer_objects(
+        copy=False)
     medians = benchmark_snapshot_df.groupby('fuzzer')[key].median().astype(int)
     medians.rename('median cov', inplace=True)
     return medians.sort_values(ascending=False)
@@ -287,7 +289,8 @@ def benchmark_rank_by_percent(benchmark_snapshot_df, key='edges_covered'):
     max_key = f'{key}_percent_max'
     logger.debug('Median: %s',
                  benchmark_snapshot_df.groupby('fuzzer')[max_key].median())
-    benchmark_snapshot_df = benchmark_snapshot_df.fillna(0)
+    benchmark_snapshot_df = benchmark_snapshot_df.fillna(0).infer_objects(
+        copy=False)
     medians = benchmark_snapshot_df.groupby('fuzzer')[max_key].median().astype(
         int)
     return medians.sort_values(ascending=False)
@@ -316,9 +319,9 @@ def benchmark_rank_by_stat_test_wins(benchmark_snapshot_df,
     p_values = stat_tests.one_sided_u_test(benchmark_snapshot_df, key=key)
 
     # Turn "significant" p-values into 1-s.
-    better_than = p_values.applymap(
+    better_than = p_values.map(
         lambda p: p < stat_tests.SIGNIFICANCE_THRESHOLD)
-    better_than = better_than.applymap(int)
+    better_than = better_than.map(int)
 
     score = better_than.sum(axis=1).sort_values(ascending=False)
     score.rename('stat wins', inplace=True)
@@ -332,9 +335,9 @@ def create_better_than_table(benchmark_snapshot_df, key='edges_covered'):
     p_values = stat_tests.one_sided_u_test(benchmark_snapshot_df, key=key)
 
     # Turn "significant" p-values into 1-s.
-    better_than = p_values.applymap(
+    better_than = p_values.map(
         lambda p: p < stat_tests.SIGNIFICANCE_THRESHOLD)
-    better_than = better_than.applymap(int)
+    better_than = better_than.map(int)
 
     # Order rows and columns of matrix according to score ranking.
     score = better_than.sum(axis=1).sort_values(ascending=False)

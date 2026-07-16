@@ -502,9 +502,11 @@ class Plotter:
 
         axes = sns.barplot(y='unique_branches_covered',
                            x='fuzzer',
+                           hue='fuzzer',
                            data=unique_branch_cov_df_combined,
                            order=fuzzer_order,
                            palette=self._fuzzer_colors,
+                           legend=False,
                            ax=axes)
 
         for patch in axes.patches:
