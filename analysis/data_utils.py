@@ -159,7 +159,8 @@ def add_bugs_covered_column(experiment_df):
     grouping2 = ['fuzzer', 'benchmark', 'trial_id']
     grouping3 = ['fuzzer', 'benchmark', 'trial_id', 'time']
     df = experiment_df.sort_values(grouping3)
-    firsts_data = df.groupby(grouping2, group_keys=False).apply(is_unique_crash) & ~df.crash_key.isna()
+    firsts_data = df.groupby(grouping2, group_keys=False).apply(
+        is_unique_crash, include_groups=False) & ~df.crash_key.isna()
     try:
         df['firsts'] = (firsts_data)
     except:
@@ -227,11 +228,15 @@ def get_experiment_snapshots(experiment_df):
     Returns the data frame that only contains the measurements made at these
     snapshot times.
     """
-    benchmark_groups = experiment_df.groupby('benchmark')
-    experiment_snapshots = benchmark_groups.apply(get_benchmark_snapshot)
-    # We don't need the extra index added by the groupby('benchmark').
-    experiment_snapshots.reset_index(drop=True, inplace=True)
-    return experiment_snapshots
+    # Prefer concat over groupby.apply so the grouping column stays in the
+    # frame (pandas' include_groups=False would drop it).
+    return pd.concat(
+        [
+            get_benchmark_snapshot(group)
+            for _, group in experiment_df.groupby('benchmark', sort=False)
+        ],
+        ignore_index=True,
+    )
 
 
 # Summary tables containing statistics on the samples.
@@ -252,11 +257,18 @@ def experiment_summary(experiment_snapshots_df):
     |benchmark|| < benchmark level summary >
     """
     groups = experiment_snapshots_df.groupby('benchmark')
-    summaries = groups.apply(benchmark_summary)
+    summaries = groups.apply(benchmark_summary, include_groups=False)
     return summaries
 
 
 # Per-benchmark fuzzer ranking options.
+
+
+def _fillna_metric(snapshot_df, key):
+    """Return a copy of |snapshot_df| with NaNs in |key| replaced by 0."""
+    filled = snapshot_df.copy()
+    filled[key] = filled[key].fillna(0)
+    return filled
 
 
 def benchmark_rank_by_mean(benchmark_snapshot_df, key='edges_covered'):
@@ -264,8 +276,7 @@ def benchmark_rank_by_mean(benchmark_snapshot_df, key='edges_covered'):
     assert benchmark_snapshot_df.time.nunique() == 1, 'Not a snapshot!'
     logger.debug('Mean: %s',
                  benchmark_snapshot_df.groupby('fuzzer')[key].mean())
-    benchmark_snapshot_df = benchmark_snapshot_df.fillna(0).infer_objects(
-        copy=False)
+    benchmark_snapshot_df = _fillna_metric(benchmark_snapshot_df, key)
     means = benchmark_snapshot_df.groupby('fuzzer')[key].mean().astype(int)
     means.rename('mean cov', inplace=True)
     return means.sort_values(ascending=False)
@@ -276,8 +287,7 @@ def benchmark_rank_by_median(benchmark_snapshot_df, key='edges_covered'):
     assert benchmark_snapshot_df.time.nunique() == 1, 'Not a snapshot!'
     logger.debug('Median: %s',
                  benchmark_snapshot_df.groupby('fuzzer')[key].median())
-    benchmark_snapshot_df = benchmark_snapshot_df.fillna(0).infer_objects(
-        copy=False)
+    benchmark_snapshot_df = _fillna_metric(benchmark_snapshot_df, key)
     medians = benchmark_snapshot_df.groupby('fuzzer')[key].median().astype(int)
     medians.rename('median cov', inplace=True)
     return medians.sort_values(ascending=False)
@@ -289,8 +299,7 @@ def benchmark_rank_by_percent(benchmark_snapshot_df, key='edges_covered'):
     max_key = f'{key}_percent_max'
     logger.debug('Median: %s',
                  benchmark_snapshot_df.groupby('fuzzer')[max_key].median())
-    benchmark_snapshot_df = benchmark_snapshot_df.fillna(0).infer_objects(
-        copy=False)
+    benchmark_snapshot_df = _fillna_metric(benchmark_snapshot_df, max_key)
     medians = benchmark_snapshot_df.groupby('fuzzer')[max_key].median().astype(
         int)
     return medians.sort_values(ascending=False)
@@ -356,7 +365,8 @@ def experiment_pivot_table(experiment_snapshots_df,
     the columns are the fuzzers, the rows are the benchmarks, and the values
     are the scores according to the per benchmark ranking."""
     benchmark_blocks = experiment_snapshots_df.groupby('benchmark')
-    groups_ranked = benchmark_blocks.apply(benchmark_level_ranking_function)
+    groups_ranked = benchmark_blocks.apply(benchmark_level_ranking_function,
+                                             include_groups=False)
     already_unstacked = groups_ranked.index.names == ['benchmark']
     pivot_df = groups_ranked if already_unstacked else groups_ranked.unstack()
     return pivot_df
