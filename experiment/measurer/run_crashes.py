@@ -17,11 +17,10 @@ import collections
 import os
 import re
 
-from third_party.clusterfuzz import stacktraces
-
 from common import logs
 from common import new_process
 from common import sanitizer
+from common import stack_parser
 from experiment.measurer import run_coverage
 
 logger = logs.Logger()
@@ -75,11 +74,11 @@ def process_crash(app_binary, crash_testcase_path, crashes_dir):
 
     # Process the crash stacktrace from output.
     fuzz_target = os.path.basename(app_binary)
-    stack_parser = stacktraces.StackParser(fuzz_target=fuzz_target,
-                                           symbolized=True,
-                                           detect_ooms_and_hangs=True,
-                                           include_ubsan=True)
-    crash_result = stack_parser.parse(result.output)
+    stack_parser_obj = stack_parser.StackParser(fuzz_target=fuzz_target,
+                                                symbolized=True,
+                                                detect_ooms_and_hangs=True,
+                                                include_ubsan=True)
+    crash_result = stack_parser_obj.parse(result.output)
     if not crash_result.crash_state:
         # No crash occurred. Bail out.
         return None
