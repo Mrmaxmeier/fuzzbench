@@ -13,22 +13,29 @@ This includes corpora, crashes and logs from fuzzers.
 It does not include the metrics used to generate a report, that data is linked
 to in the report itself.
 
-This page is written for users of the FuzzBench service. The same concepts apply
-to users running FuzzBench on their own. However, the Google Cloud Storage
-buckets will be different.
-
 ## Getting the data
 
-We store experiment data in the Google cloud storage bucket: "gs://fuzzbench-data".
-[commondatastorage.googleapis.com/fuzzbench-data/index.html](http://commondatastorage.googleapis.com/fuzzbench-data/index.html)
-Provides a web interface for browsing and downloading the experiment data.
+Experiment data is stored on the local filesystem under the `experiment_filestore`
+path configured for your experiment (see the
+[guide to running a local experiment]({{ site.baseurl }}/running-a-local-experiment/)).
 
-We use gsutil for obtaining this data. Follow [these instructions to install
-gsutil](https://cloud.google.com/storage/docs/gsutil_install#install).
+For an experiment named `$EXPERIMENT_NAME`, the data directory is:
 
-With gsutil you can do `gsutil ls gs://fuzzbench-data/$EXPERIMENT_NAME/` to list
-files in cloud storage directories for your project and you can use `gsutil cp`
-to copy them.
+```
+$EXPERIMENT_FILESTORE/$EXPERIMENT_NAME/
+```
+
+You can list and copy files from this directory using standard shell commands.
+For example:
+
+```bash
+ls $EXPERIMENT_FILESTORE/$EXPERIMENT_NAME/
+cp -r $EXPERIMENT_FILESTORE/$EXPERIMENT_NAME/experiment-folders/ .
+```
+
+HTML reports and summary data are written to the `report_filestore` path
+configured for your experiment (for example
+`$REPORT_FILESTORE/$EXPERIMENT_NAME/index.html`).
 
 ## Data layout
 

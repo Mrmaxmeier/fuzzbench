@@ -18,16 +18,13 @@ a local experiment. The `run_experiment.py` script will
 create and run a dispatcher docker container which runs the experiment,
 including:
 1. Building desired fuzzer-benchmark combinations.
-1. Starting instances to run fuzzing trials with the fuzzer-benchmark
+1. Starting containers to run fuzzing trials with the fuzzer-benchmark
    builds and stopping them when they are done.
 1. Measuring the coverage from these trials.
 1. Generating reports based on these measurements.
 
 The rest of this page will assume all commands are run from the root of
 FuzzBench checkout.
-
-**NOTE**: Currently, there is no resource control in experiment trials (e.g. allocated cpus, memory),
-but we do plan to add it in the near future.
 
 ## Experiment configuration file
 
@@ -51,16 +48,16 @@ max_total_time: 86400
 docker_registry: gcr.io/fuzzbench
 
 # The local experiment folder that will store most of the experiment data.
-# Please use an absolute path.
+# Must be an absolute POSIX path.
 experiment_filestore: /tmp/experiment-data
 
 # The local report folder where HTML reports and summary data will be stored.
-# Please use an absolute path.
+# Must be an absolute POSIX path.
 report_filestore: /tmp/report-data
-
-# Flag that indicates this is a local experiment.
-local_experiment: true
 ```
+
+`local_experiment` defaults to `true` and does not need to be set for local
+runs.
 
 ## Benchmarks
 
@@ -105,4 +102,5 @@ You should eventually be able to see reports from your experiment, that are
 update at some interval throughout the experiment. However, you may have to wait
 a while until they first appear since a lot must happen before there is data to
 generate report. Once they are available, you should be able to view them at:
-`/tmp/report-data/$EXPERIMENT_NAME/index.html`.
+`$REPORT_FILESTORE/$EXPERIMENT_NAME/index.html` (using the `report_filestore`
+path from your experiment config).

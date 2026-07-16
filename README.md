@@ -1,11 +1,9 @@
-# FuzzBench: Fuzzer Benchmarking As a Service
+# FuzzBench: Fuzzer Benchmarking Platform
 
-FuzzBench is a free service that evaluates fuzzers on a wide variety of
-real-world benchmarks, at Google scale. The goal of FuzzBench is to make it
-painless to rigorously evaluate fuzzing research and make fuzzing research
-easier for the community to adopt. We invite members of the research community
-to contribute their fuzzers and give us feedback on improving our evaluation
-techniques.
+FuzzBench is an open source platform for rigorously evaluating fuzzers on a wide
+variety of real-world benchmarks. The goal of FuzzBench is to make it painless
+to evaluate fuzzing research and make fuzzing research easier for the community
+to adopt.
 
 FuzzBench provides:
 
@@ -15,30 +13,27 @@ FuzzBench provides:
 * A reporting library that produces reports with graphs and statistical tests
   to help you understand the significance of results.
 
-To participate, submit your fuzzer to run on the FuzzBench platform by following
-[our simple guide](
-https://google.github.io/fuzzbench/getting-started/).
-After your integration is accepted, we will run a large-scale experiment using
-your fuzzer and generate a report comparing your fuzzer to others.
-See [a sample report](https://www.fuzzbench.com/reports/sample/index.html).
+## Run an experiment locally
 
-## Overview
-<kbd>
-  
-![FuzzBench Service diagram](docs/images/FuzzBench-service.png)
-  
-</kbd>
+Run FuzzBench on your own machine using Docker. See the
+[guide to running a local experiment](
+https://google.github.io/fuzzbench/running-a-local-experiment/) for setup and
+configuration.
 
+After integrating a fuzzer, follow the
+[getting started guide](https://google.github.io/fuzzbench/getting-started/)
+to build and test it, then run an experiment with `experiment/run_experiment.py`.
 
-## Sample Report
+Reports are written to the `report_filestore` path in your experiment config
+(for example `/tmp/report-data/$EXPERIMENT_NAME/index.html`).
 
-You can view our sample report
-[here](https://www.fuzzbench.com/reports/sample/index.html) and
-our periodically generated reports
-[here](https://www.fuzzbench.com/reports/index.html).
-The sample report is generated using 10 fuzzers against 24 real-world
-benchmarks, with 20 trials each and over a duration of 24 hours.
-The raw data in compressed CSV format can be found at the end of the report.
+## Sample reports
+
+You can view a
+[sample report](https://www.fuzzbench.com/reports/sample/index.html) and
+[periodically generated reports](https://www.fuzzbench.com/reports/index.html)
+from past FuzzBench experiments. The sample report uses 10 fuzzers against 24
+real-world benchmarks, with 20 trials each over 24 hours.
 
 When analyzing reports, we recommend:
 * Checking the strengths and weaknesses of a fuzzer against various benchmarks.

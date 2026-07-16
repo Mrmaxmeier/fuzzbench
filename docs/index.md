@@ -7,14 +7,12 @@ has_children: true
 has_toc: false
 ---
 
-# FuzzBench: Fuzzer Benchmarking As a Service
+# FuzzBench: Fuzzer Benchmarking Platform
 
-FuzzBench is a free service that evaluates fuzzers on a wide variety of
-real-world benchmarks, at Google scale. The goal of FuzzBench is to make it
-painless to rigorously evaluate fuzzing research and make fuzzing research
-easier for the community to adopt. We invite members of the research community
-to contribute their fuzzers and give us feedback on improving our evaluation
-techniques.
+FuzzBench is an open source platform for rigorously evaluating fuzzers on a wide
+variety of real-world benchmarks. The goal of FuzzBench is to make it painless
+to evaluate fuzzing research and make fuzzing research easier for the community
+to adopt.
 
 FuzzBench provides:
 
@@ -24,40 +22,45 @@ FuzzBench provides:
 * A reporting library that produces reports with graphs and statistical tests
   to help you understand the significance of results.
 
-To participate, submit your fuzzer to run on the FuzzBench platform by following
-[our simple guide]({{ site.baseurl }}/getting-started/).
-After your integration is accepted, we will run a large-scale experiment using
-your fuzzer and generate a report comparing your fuzzer to others, such as AFL
-and libFuzzer.
-See [a sample report](https://www.fuzzbench.com/reports/sample/index.html).
+## Run an experiment locally
+
+Run FuzzBench on your own machine using Docker. See the
+[guide to running a local experiment]({{ site.baseurl }}/running-a-local-experiment/)
+for setup and configuration.
+
+After integrating a fuzzer, follow the
+[getting started guide]({{ site.baseurl }}/getting-started/) to build and test
+it, then run an experiment with `experiment/run_experiment.py`.
+
+Reports are written to the `report_filestore` path in your experiment config
+(for example `/tmp/report-data/$EXPERIMENT_NAME/index.html`).
 
 ## Overview
 
-![FuzzBench Service diagram](images/FuzzBench-service.png)
+![FuzzBench architecture](images/FuzzBench-architecture.png)
+
 The process works like this:
-1. A fuzzer developer (or someone else interested)
+1. A fuzzer developer
 [integrates a fuzzer]({{ site.baseurl }}/getting-started/adding-a-new-fuzzer/)
 with FuzzBench.
 1. The integration is merged into the [
 FuzzBench repo](https://github.com/google/fuzzbench).
-1. FuzzBench runs an experiment with the new fuzzer on the benchmarks.
-1. FuzzBench publishes a report comparing the performance of the fuzzer to other
-fuzzers both on individual benchmarks and in aggregate.
+1. You run a local experiment with the fuzzers and benchmarks you want to compare.
+1. FuzzBench generates a report comparing fuzzer performance on individual
+benchmarks and in aggregate.
 
 ## Adding a fuzzer
 
 Follow [this guide]({{ site.baseurl }}/getting-started/) to add a fuzzer to
-FuzzBench, submit it, and get benchmark results.
+FuzzBench and test it locally.
 
-## Sample report
+## Sample reports
 
-You can view our sample report
-[here](https://www.fuzzbench.com/reports/sample/index.html) and
-our periodically generated reports
-[here](https://www.fuzzbench.com/reports/index.html).
-The sample report is generated using 10 fuzzers against 24 real-world
-benchmarks, with 20 trials each and over a duration of 24 hours.
-The raw data in compressed CSV format can be found at the end of the report.
+You can view a
+[sample report](https://www.fuzzbench.com/reports/sample/index.html) and
+[periodically generated reports](https://www.fuzzbench.com/reports/index.html)
+from past FuzzBench experiments. The sample report uses 10 fuzzers against 24
+real-world benchmarks, with 20 trials each over 24 hours.
 
 When analyzing reports, we recommend:
 * Checking the strengths and weaknesses of a fuzzer against various benchmarks.

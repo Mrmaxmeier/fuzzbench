@@ -52,21 +52,17 @@ platform. Contributions and suggestions to make the platform better are welcome.
 
 ## How can I reproduce the results or run FuzzBench myself?
 
-We are running the free FuzzBench service on Google Cloud, and the current
-implementation has some Google Cloud specific bits in it. You can use the code
-to run FuzzBench yourself on Google Cloud. Our docs explain how to do this
-[here]({{ site.baseurl }}/running-your-own-experiment/running-an-experiment/).
-
-We are also working on making it easier to run in other environments (local
-cluster, other cloud providers, kubernetes, etc.). Community contributions for
-making it easier to run on different platforms are more than welcome.
+FuzzBench runs experiments locally using Docker. See the
+[guide to running a local experiment]({{ site.baseurl }}/running-a-local-experiment/)
+for instructions on configuring and starting an experiment with
+`experiment/run_experiment.py`.
 
 ## Can I add my fuzzer?
 
 Yes! In our initial launch, we have picked only a few fuzzers (e.g. AFL,
 libFuzzer) to get things started. We welcome all researchers to add their tools
-to the FuzzBench platform for automated, continuous, and free evaluation. Please
-use the instructions provided [here]({{ site.baseurl}}/getting-started/adding-a-new-fuzzer/).
+to the FuzzBench platform for evaluation. Please use the instructions provided
+[here]({{ site.baseurl}}/getting-started/adding-a-new-fuzzer/).
 
 ## Can I integrate someone else's fuzzer?
 
