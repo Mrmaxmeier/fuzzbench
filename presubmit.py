@@ -58,7 +58,6 @@ _LICENSE_CHECK_STRING = 'http://www.apache.org/licenses/LICENSE-2.0'
 _SRC_ROOT = Path(__file__).absolute().parent
 THIRD_PARTY_DIR_NAME = 'third_party'
 _IGNORE_DIRECTORIES = [
-    os.path.join(_SRC_ROOT, 'database', 'alembic'),
     os.path.join(_SRC_ROOT, 'benchmarks'),
 ]
 
@@ -152,17 +151,6 @@ class FuzzerAndBenchmarkValidator:
 def is_python(path: Path) -> bool:
     """Returns True if |path| ends in .py."""
     return path.suffix == '.py'
-
-
-MIGRATIONS_PATH = os.path.join(_SRC_ROOT, 'database', 'alembic', 'versions')
-
-
-def filter_migrations(paths):
-    """Filter out migration scripts."""
-    # TODO(metzman): Filter out all alembic scripts.
-    return [
-        path for path in paths if not os.path.dirname(path) == MIGRATIONS_PATH
-    ]
 
 
 def test_changed_integrations(paths: List[Path]):

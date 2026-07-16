@@ -330,31 +330,43 @@ def convert_individual_ktest(ktest_tool, kfile, queue_dir, output_klee,
     return n_crashes
 
 
-# pylint: disable=import-error
-# pylint: disable=import-outside-toplevel
+def _read_proc_file(path):
+    """Return contents of a /proc file, or a placeholder on failure."""
+    try:
+        with open(path, encoding='utf-8') as proc_file:
+            return proc_file.read().strip()
+    except OSError:
+        return f'(unavailable: {path})'
+
+
+def _available_memory_mb():
+    """Approximate available RAM in MiB from /proc/meminfo."""
+    try:
+        with open('/proc/meminfo', encoding='utf-8') as meminfo:
+            for line in meminfo:
+                if line.startswith('MemAvailable:'):
+                    return int(line.split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return 1024
+
+
 def monitor_resource_usage():
     """Monitor resource consumption."""
-
-    import psutil
     print('[resource_thread] Starting resource usage monitoring...')
 
     start = datetime.now()
     while True:
         time.sleep(60 * 5)
-        message = (f'{psutil.cpu_times_percent(percpu=False)}\n'
-                   f'{psutil.virtual_memory()}\n'
-                   f'{psutil.swap_memory()}')
+        message = (f'loadavg: {_read_proc_file("/proc/loadavg")}\n'
+                   f'meminfo:\n{_read_proc_file("/proc/meminfo")}')
         now = datetime.now()
         print(
             f'[resource_thread] Resource usage after {now - start}:\n{message}')
 
 
-# pylint: disable=import-error
-# pylint: disable=import-outside-toplevel
 def fuzz(input_corpus, output_corpus, target_binary):
     """Run fuzzer."""
-
-    import psutil
 
     # Set ulimit. Note: must be changed as this does not take effect
     if os.system('ulimit -s unlimited') != 0:
@@ -396,7 +408,7 @@ def fuzz(input_corpus, output_corpus, target_binary):
     for filename in get_bc_files():
         llvm_link_libs.append(f'-link-llvm-lib=./{LIB_BC_DIR}/{filename}')
 
-    max_memory_mb = str(int(psutil.virtual_memory().available // 10**6 * 0.9))
+    max_memory_mb = str(int(_available_memory_mb() * 0.9))
 
     klee_cmd = [
         klee_bin,

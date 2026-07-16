@@ -13,4 +13,3 @@
 # limitations under the License.
 
 FROM gcr.io/fuzzbench/base-image
-RUN python3 -m pip install psutil

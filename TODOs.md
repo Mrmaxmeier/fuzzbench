@@ -1,5 +1,5 @@
 trim dependencies
-candidates: orange3, clusterfuzz, ..?  (done)
+candidates: orange3, clusterfuzz, alembic, psutil, transitive pins (done)
 
 strip google-isms: .allstar, CLA,  (done)
 

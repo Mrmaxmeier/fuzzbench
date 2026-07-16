@@ -13,7 +13,7 @@
 # limitations under the License.
 """Minimal ASan/libFuzzer stacktrace parser for FuzzBench crash processing.
 
-Replaces the vendored ClusterFuzz StackParser with the subset of behavior
+Replaces ClusterFuzz's StackParser with the subset of behavior
 needed for clang coverage binaries (ASan, UBSan, libFuzzer timeout/OOM).
 """
 

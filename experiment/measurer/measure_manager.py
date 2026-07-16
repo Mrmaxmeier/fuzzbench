@@ -28,8 +28,6 @@ import tarfile
 import time
 from typing import List
 import queue
-import psutil
-
 from sqlalchemy import func
 from sqlalchemy import orm
 
@@ -93,7 +91,7 @@ def _process_init(cores_queue):
     """Cpu pin for each pool process"""
     cpu = cores_queue.get()
     if sys.platform == 'linux':
-        psutil.Process().cpu_affinity([cpu])
+        os.sched_setaffinity(0, {cpu})
 
 
 def measure_loop(experiment: str,
