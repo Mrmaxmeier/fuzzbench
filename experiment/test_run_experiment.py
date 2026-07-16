@@ -19,6 +19,7 @@ import unittest
 
 import pytest
 
+from common import experiment_utils
 from experiment import run_experiment
 
 BENCHMARKS_DIR = os.path.abspath(
@@ -49,22 +50,15 @@ class TestReadAndValdiateExperimentConfig(unittest.TestCase):
         self.config_filename = 'config'
         self.config = {
             'experiment_filestore':
-                'gs://bucket',
+                '/tmp/experiment',
             'report_filestore':
-                'gs://web-bucket',
+                '/tmp/report',
             'docker_registry':
                 'gcr.io/fuzzbench',
-            'cloud_project':
-                'fuzzbench',
-            'cloud_compute_zone':
-                'us-central1-a',
             'trials':
                 10,
             'max_total_time':
                 1000,
-            'worker_pool_name': (
-                'projects/fuzzbench/locations/us-central1/workerpools/buildpool'
-            ),
         }
 
     @mock.patch('common.logs.error')
@@ -81,32 +75,12 @@ class TestReadAndValdiateExperimentConfig(unittest.TestCase):
             mocked_error.assert_called_with(
                 'Config does not contain required parameter "%s".', 'trials')
 
-    @mock.patch('common.logs.error')
-    def test_missing_required_cloud(self, mocked_error):
-        """Tests that an error is logged when the config file is missing a
-        required cloudconfig parameter."""
-        # All but each cloud_param defined in run_experiment.py.
-        cloud_params = {
-            'cloud_compute_zone', 'cloud_project', 'worker_pool_name'
-        }
-        for cloud_param in cloud_params:
-            test_config = self.config.copy()
-            del test_config[cloud_param]
-            with mock.patch('common.yaml_utils.read') as mocked_read_yaml:
-                mocked_read_yaml.return_value = test_config
-                with pytest.raises(run_experiment.ValidationError):
-                    run_experiment.read_and_validate_experiment_config(
-                        'config_file')
-                mocked_error.assert_called_with(
-                    'Config does not contain required parameter "%s".',
-                    cloud_param)
-
     def test_invalid_upper(self):
         """Tests that an error is logged when the config file has a config
         parameter that should be a lower case string but has some upper case
         chars."""
         self._test_invalid(
-            'experiment_filestore', 'gs://EXPERIMENT',
+            'experiment_filestore', '/EXPERIMENT',
             'Config parameter "%s" is "%s". It must be a lowercase string.')
 
     def test_invalid_string(self):
@@ -119,19 +93,16 @@ class TestReadAndValdiateExperimentConfig(unittest.TestCase):
     def test_invalid_local_filestore(self):
         """Tests that an error is logged when the config file has a config
         parameter that should be a local filestore but is not."""
-        self.config['local_experiment'] = True
-        self.config['experiment_filestore'] = '/user/test/folder'
         self._test_invalid(
             'report_filestore', 'gs://wrong-here', 'Config parameter "%s" is '
             '"%s". Local experiments only support Posix file systems '
             'filestores.')
 
-    def test_invalid_cloud_filestore(self):
-        """Tests that an error is logged when the config file has a config
-        parameter that should be a GCS bucket but is not."""
+    def test_invalid_non_posix_filestore(self):
+        """Tests that an error is logged when filestore is not a Posix path."""
         self._test_invalid(
             'experiment_filestore', 'invalid', 'Config parameter "%s" is "%s". '
-            'Google Cloud experiments must start with "gs://".')
+            'Local experiments only support Posix file systems filestores.')
 
     @mock.patch('common.logs.error')
     def test_multiple_invalid(self, mocked_error):
@@ -168,10 +139,18 @@ class TestReadAndValdiateExperimentConfig(unittest.TestCase):
     def test_read_and_validate_experiment_config(self, _):
         """Tests that read_and_validat_experiment_config works as intended when
         config is valid."""
+        expected_config = self.config.copy()
         with mock.patch('common.yaml_utils.read') as mocked_read_yaml:
             mocked_read_yaml.return_value = self.config
-            assert (self.config == run_experiment.
-                    read_and_validate_experiment_config('config_file'))
+            validated_config = run_experiment.read_and_validate_experiment_config(
+                'config_file')
+        expected_config['local_experiment'] = True
+        expected_config['worker_pool_name'] = ''
+        expected_config['snapshot_period'] = (
+            experiment_utils.DEFAULT_SNAPSHOT_SECONDS)
+        expected_config['private'] = False
+        expected_config['micro_experiment'] = False
+        assert expected_config == validated_config
 
 
 def test_validate_fuzzer():
@@ -213,7 +192,7 @@ def test_copy_resources_to_bucket(tmp_path):
 
     config_dir = 'config'
     config = {
-        'experiment_filestore': 'gs://gsutil-bucket',
+        'experiment_filestore': '/tmp/gsutil-bucket',
         'experiment': 'experiment',
         'benchmarks': ['libxslt_xpath'],
         'oss_fuzz_corpus': True,
@@ -227,16 +206,16 @@ def test_copy_resources_to_bucket(tmp_path):
                     run_experiment.copy_resources_to_bucket(config_dir, config)
                     mocked_filestore_cp.assert_called_once_with(
                         'src.tar.gz',
-                        'gs://gsutil-bucket/experiment/input/',
+                        '/tmp/gsutil-bucket/experiment/input/',
                         parallel=True)
                     mocked_filestore_rsync.assert_called_once_with(
                         'config',
-                        'gs://gsutil-bucket/experiment/input/config',
+                        '/tmp/gsutil-bucket/experiment/input/config',
                         parallel=True)
                     mocked_gsutil_cp.assert_called_once_with(
                         'gs://libxslt-backup.clusterfuzz-external.appspot.com/'
                         'corpus/libFuzzer/libxslt_xpath/public.zip',
-                        'gs://gsutil-bucket/experiment/oss_fuzz_corpora/'
+                        '/tmp/gsutil-bucket/experiment/oss_fuzz_corpora/'
                         'libxslt_xpath.zip',
                         expect_zero=False,
                         parallel=True)

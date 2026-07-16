@@ -27,7 +27,6 @@ from typing import List, Tuple
 
 from common import benchmark_config
 from common import benchmark_utils
-from common import experiment_utils
 from common import fuzzer_config
 from common import fuzzer_utils
 from common import filesystem
@@ -35,12 +34,8 @@ from common import utils
 from common import logs
 
 from experiment.build import build_utils
+from experiment.build import local_build as buildlib
 from experiment import run_experiment
-
-if not experiment_utils.is_local_experiment():
-    import experiment.build.gcb_build as buildlib
-else:
-    import experiment.build.local_build as buildlib
 
 # Build attempts and wait interval.
 NUM_BUILD_ATTEMPTS = 3
@@ -198,9 +193,9 @@ def build_all_fuzzer_benchmarks(fuzzers: List[str],
 
 
 def main():
-    """Build fuzzer, benchmark pairs on Google Cloud Build."""
+    """Build fuzzer, benchmark pairs locally."""
     parser = argparse.ArgumentParser(
-        description='Build fuzzer, benchmark pairs on Google Cloud Build.')
+        description='Build fuzzer, benchmark pairs locally.')
 
     parser.add_argument('-b',
                         '--benchmarks',

@@ -14,50 +14,37 @@
 # limitations under the License.
 """Stops a running experiment."""
 
+import subprocess
 import sys
 
-from common import experiment_utils
 from common import logs
-from common import gce
-from common import gcloud
 from common import yaml_utils
 
 logger = logs.Logger()  # pylint: disable=invalid-name
 
+DISPATCHER_CONTAINER_NAME = 'dispatcher-container'
+
 
 def stop_experiment(experiment_name, experiment_config_filename):
     """Stop the experiment specified by |experiment_config_filename|."""
-    experiment_config = yaml_utils.read(experiment_config_filename)
-    if experiment_config.get('local_experiment', False):
-        raise NotImplementedError(
-            'Local experiment stop logic is not implemented.')
+    del experiment_name  # Local experiments use a fixed dispatcher container name.
+    yaml_utils.read(experiment_config_filename)
 
-    logger.info('Stopping experiment.')
-    cloud_project = experiment_config['cloud_project']
-    cloud_compute_zone = experiment_config['cloud_compute_zone']
-
-    gce.initialize()
-    instances = list(gce.get_instances(cloud_project, cloud_compute_zone))
-
-    experiment_instances = []
-    dispatcher_instance = experiment_utils.get_dispatcher_instance_name(
-        experiment_name)
-    if dispatcher_instance not in instances:
-        logger.warning('Dispatcher instance not running, skip.')
-    else:
-        experiment_instances.append(dispatcher_instance)
-
-    trial_prefix = 'r-' + experiment_name
-    experiment_instances.extend([
-        instance for instance in instances if instance.startswith(trial_prefix)
-    ])
-    if not experiment_instances:
-        logger.warning('No experiment instances found, no work to do.')
-        return True
-
-    logger.info('Deleting instance.')
-    if not gcloud.delete_instances(experiment_instances, cloud_compute_zone):
-        logger.error('Failed to stop experiment instances.')
+    logger.info(
+        'Stopping local experiment by stopping dispatcher container: %s',
+        DISPATCHER_CONTAINER_NAME)
+    try:
+        subprocess.run(
+            ['docker', 'stop', DISPATCHER_CONTAINER_NAME],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as error:
+        if 'No such container' in (error.stderr or ''):
+            logger.warning('Dispatcher container not running, skip.')
+            return True
+        logger.error('Failed to stop dispatcher container: %s', error.stderr)
         return False
 
     logger.info('Successfully stopped experiment.')

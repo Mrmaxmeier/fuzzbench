@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Creates a dispatcher VM in GCP and sends it all the files and configurations
+"""Starts a local dispatcher and sends it all the files and configurations
 it needs to begin an experiment."""
 
 import argparse
@@ -21,11 +21,9 @@ import re
 import subprocess
 import sys
 import tarfile
-import tempfile
 from collections import namedtuple
 from typing import Dict, List, Optional, Union
 
-import jinja2
 import yaml
 
 from common import benchmark_utils
@@ -33,7 +31,6 @@ from common import experiment_utils
 from common import filestore_utils
 from common import filesystem
 from common import fuzzer_utils
-from common import gcloud
 from common import gsutil
 from common import logs
 from common import new_process
@@ -42,7 +39,6 @@ from common import yaml_utils
 
 BENCHMARKS_DIR = os.path.join(utils.ROOT_DIR, 'benchmarks')
 FUZZERS_DIR = os.path.join(utils.ROOT_DIR, 'fuzzers')
-RESOURCES_DIR = os.path.join(utils.ROOT_DIR, 'experiment', 'resources')
 FUZZER_NAME_REGEX = re.compile(r'^[a-z][a-z0-9_]+$')
 EXPERIMENT_CONFIG_REGEX = re.compile(r'^[a-z0-9-]{0,30}$')
 FILTER_SOURCE_REGEX = re.compile(r'('
@@ -66,10 +62,9 @@ Requirement = namedtuple('Requirement',
                          ['mandatory', 'type', 'lowercase', 'startswith'])
 
 
-def _set_default_config_values(config: Dict[str, Union[int, str, bool]],
-                               local_experiment: bool):
+def _set_default_config_values(config: Dict[str, Union[int, str, bool]]):
     """Set the default configuration values if they are not specified."""
-    config['local_experiment'] = local_experiment
+    config['local_experiment'] = True
     config['worker_pool_name'] = config.get('worker_pool_name', '')
     config['snapshot_period'] = config.get(
         'snapshot_period', experiment_utils.DEFAULT_SNAPSHOT_SECONDS)
@@ -134,9 +129,7 @@ def _validate_config_values(
                 requirement.startswith):
             valid = False
             error_reason = (
-                'Local experiments only support Posix file systems filestores.'
-                if config.get('local_experiment', False) else
-                'Google Cloud experiments must start with "gs://".')
+                'Local experiments only support Posix file systems filestores.')
             logs.error(f'{error_param} {error_reason}', param, value)
 
     return valid
@@ -149,29 +142,18 @@ def read_and_validate_experiment_config(config_filename: str) -> Dict:
     # Reads config from file.
     config = yaml_utils.read(config_filename)
 
-    # Validates config contains all the required parameters.
-    local_experiment = config.get('local_experiment', False)
-
     # Requirement of each config field.
     config_requirements = {
         'experiment_filestore':
-            Requirement(True, str, True, '/' if local_experiment else 'gs://'),
+            Requirement(True, str, True, '/'),
         'report_filestore':
-            Requirement(True, str, True, '/' if local_experiment else 'gs://'),
+            Requirement(True, str, True, '/'),
         'docker_registry':
             Requirement(True, str, True, ''),
         'trials':
             Requirement(True, int, False, ''),
         'max_total_time':
             Requirement(True, int, False, ''),
-        'cloud_compute_zone':
-            Requirement(not local_experiment, str, True, ''),
-        'cloud_project':
-            Requirement(not local_experiment, str, True, ''),
-        'worker_pool_name':
-            Requirement(not local_experiment, str, False, ''),
-        'cloud_sql_instance_connection_name':
-            Requirement(False, str, True, ''),
         'snapshot_period':
             Requirement(False, int, False, ''),
         'local_experiment':
@@ -197,7 +179,7 @@ def read_and_validate_experiment_config(config_filename: str) -> Dict:
     if not all_params_valid or not all_values_valid:
         raise ValidationError(f'Config: {config_filename} is invalid.')
 
-    _set_default_config_values(config, local_experiment)
+    _set_default_config_values(config)
     return config
 
 
@@ -301,12 +283,7 @@ def get_git_hash(allow_uncommitted_changes):
 def _filter_incompatible_benchmarks(config: dict,
                                     benchmarks: List[str]) -> List[str]:
     """Removes benchmarks that are incompatible with build/run environment."""
-    if config['local_experiment']:
-        return benchmarks
-    if 'openh264_decoder_fuzzer' in benchmarks:
-        benchmarks.remove('openh264_decoder_fuzzer')
-    if 'stb_stbi_read_fuzzer' in benchmarks:
-        benchmarks.remove('stb_stbi_read_fuzzer')
+    del config  # Local-only; no cloud benchmark filtering.
     return benchmarks
 
 
@@ -368,14 +345,6 @@ def start_experiment_from_full_config(config):
 
     set_up_experiment_config_file(config)
 
-    # Make sure we can connect to database.
-    local_experiment = config.get('local_experiment', False)
-    if not local_experiment:
-        if 'POSTGRES_PASSWORD' not in os.environ:
-            raise ValidationError(
-                'Must set POSTGRES_PASSWORD environment variable.')
-        gcloud.set_default_project(config['cloud_project'])
-
     start_dispatcher(config, experiment_utils.CONFIG_DIR)
 
 
@@ -406,6 +375,7 @@ def add_oss_fuzz_corpus(benchmark, oss_fuzz_corpora_dir):
     src_corpus_url = _OSS_FUZZ_CORPUS_BACKUP_URL_FORMAT.format(
         project=project, fuzz_target=full_fuzz_target)
     dest_corpus_url = os.path.join(oss_fuzz_corpora_dir, f'{benchmark}.zip')
+    # TODO(plan-004): Replace gsutil with a local-friendly corpus fetch.
     gsutil.cp(src_corpus_url, dest_corpus_url, parallel=True, expect_zero=False)
 
 
@@ -508,7 +478,7 @@ class LocalDispatcher(BaseDispatcher):
         set_concurrent_builds_arg = (
             f'CONCURRENT_BUILDS={self.config["concurrent_builds"]}')
         set_worker_pool_name_arg = (
-            f'WORKER_POOL_NAME={self.config["worker_pool_name"]}')
+            f'WORKER_POOL_NAME={self.config.get("worker_pool_name", "")}')
         environment_args = [
             '-e',
             'LOCAL_EXPERIMENT=True',
@@ -562,64 +532,9 @@ class LocalDispatcher(BaseDispatcher):
         return new_process.execute(command, write_to_stdout=True)
 
 
-class GoogleCloudDispatcher(BaseDispatcher):
-    """Class representing the dispatcher instance on Google Cloud."""
-
-    def start(self):
-        """Start the experiment on the dispatcher."""
-        with tempfile.NamedTemporaryFile(dir=os.getcwd(),
-                                         mode='w') as startup_script:
-            self.write_startup_script(startup_script)
-            if not gcloud.create_instance(self.instance_name,
-                                          gcloud.InstanceType.DISPATCHER,
-                                          self.config,
-                                          startup_script=startup_script.name):
-                raise RuntimeError('Failed to create dispatcher.')
-            logs.info('Started dispatcher with instance name: %s',
-                      self.instance_name)
-
-    def _render_startup_script(self):
-        """Renders the startup script template and returns the result as a
-        string."""
-        jinja_env = jinja2.Environment(
-            undefined=jinja2.StrictUndefined,
-            loader=jinja2.FileSystemLoader(RESOURCES_DIR),
-        )
-        template = jinja_env.get_template(
-            'dispatcher-startup-script-template.sh')
-        cloud_sql_instance_connection_name = (
-            self.config['cloud_sql_instance_connection_name'])
-
-        kwargs = {
-            'instance_name': self.instance_name,
-            'postgres_password': os.environ['POSTGRES_PASSWORD'],
-            'experiment': self.config['experiment'],
-            'cloud_project': self.config['cloud_project'],
-            'experiment_filestore': self.config['experiment_filestore'],
-            'cloud_sql_instance_connection_name':
-                (cloud_sql_instance_connection_name),
-            'docker_registry': self.config['docker_registry'],
-            'concurrent_builds': self.config['concurrent_builds'],
-            'worker_pool_name': self.config['worker_pool_name'],
-            'private': self.config['private'],
-        }
-        if 'worker_pool_name' in self.config:
-            kwargs['worker_pool_name'] = self.config['worker_pool_name']
-        return template.render(**kwargs)
-
-    def write_startup_script(self, startup_script_file):
-        """Get the startup script to start the experiment on the dispatcher."""
-        startup_script = self._render_startup_script()
-        startup_script_file.write(startup_script)
-        startup_script_file.flush()
-
-
 def get_dispatcher(config: Dict) -> BaseDispatcher:
-    """Return a dispatcher object created from the right class (i.e. dispatcher
-    factory)."""
-    if config.get('local_experiment'):
-        return LocalDispatcher(config)
-    return GoogleCloudDispatcher(config)
+    """Return a local dispatcher object."""
+    return LocalDispatcher(config)
 
 
 def main():
