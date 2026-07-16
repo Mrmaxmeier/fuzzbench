@@ -40,6 +40,8 @@ from database import utils as db_utils
 GRACE_TIME_SECONDS = 5 * 60
 
 FAIL_WAIT_SECONDS = 10 * 60
+# Poll interval while trials are running or waiting for free local CPUs.
+SCHEDULE_POLL_SECONDS = 60
 
 logger = logs.Logger()  # pylint: disable=invalid-name
 
@@ -605,6 +607,8 @@ def schedule_loop(experiment_config: dict):
     with multiprocessing.Pool(*pool_args) as pool:
         handle_preempted = False
         while not all_trials_ended(experiment):
+            started_trials = []
+            scheduling_error = False
             try:
                 if (not local_experiment and not handle_preempted and
                         not any_pending_trials(experiment)):
@@ -615,18 +619,22 @@ def schedule_loop(experiment_config: dict):
                     #    initial trial was started.
                     handle_preempted = True
 
-                schedule(experiment_config, pool, core_allocation)
+                started_trials = schedule(experiment_config, pool,
+                                          core_allocation)
                 if handle_preempted:
                     trial_instance_manager.handle_preempted_trials()
             except Exception:  # pylint: disable=broad-except
                 logger.error('Error occurred during scheduling.')
+                scheduling_error = True
 
-            # Either
-            # - We had an unexpected exception OR
-            # - We have not been able to start trials and still have some
-            #   remaining. This can happen when we run out of instance quota.
-            # In these cases, sleep before retrying again.
-            time.sleep(FAIL_WAIT_SECONDS)
+            # Back off on unexpected errors or when pending trials could not be
+            # started (e.g. cloud instance quota). Otherwise poll periodically
+            # while trials are still running.
+            if scheduling_error or (not started_trials and
+                                    any_pending_trials(experiment)):
+                time.sleep(FAIL_WAIT_SECONDS)
+            elif not all_trials_ended(experiment):
+                time.sleep(SCHEDULE_POLL_SECONDS)
 
     logger.info('Finished scheduling.')
 

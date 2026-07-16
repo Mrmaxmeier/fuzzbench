@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for gcloud.py."""
 
+import subprocess
 from unittest import mock
 
 from common import gcloud
@@ -190,3 +191,26 @@ def test_delete_instance_template(mocked_execute):
         'gcloud', 'compute', 'instance-templates', 'delete', template_name
     ]
     mocked_execute.assert_called_with(expected_command)
+
+
+@mock.patch('subprocess.Popen')
+def test_run_local_instance_redirects_output(mocked_popen):
+    """run_local_instance must not use an unread PIPE (deadlock risk)."""
+    mocked_popen.return_value = mock.Mock()
+    assert gcloud.run_local_instance('/tmp/startup.sh')
+    mocked_popen.assert_called_once_with(
+        ['/bin/bash', '/tmp/startup.sh'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+@mock.patch('subprocess.Popen', side_effect=OSError('boom'))
+def test_run_local_instance_returns_false_on_oserror(_mocked_popen):
+    """run_local_instance returns False when the process cannot be started."""
+    assert not gcloud.run_local_instance('/tmp/startup.sh')
+
+
+def test_run_local_instance_requires_script():
+    """run_local_instance returns False when no startup script is given."""
+    assert not gcloud.run_local_instance(None)

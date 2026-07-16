@@ -129,9 +129,19 @@ def set_default_project(cloud_project: str):
 def run_local_instance(startup_script: Optional[str] = None) -> bool:
     """Does the equivalent of "create_instance" for local experiments, runs
     |startup_script| in the background."""
+    if not startup_script:
+        return False
     command = ['/bin/bash', startup_script]
-    # pylint: disable=consider-using-with
-    subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+        # pylint: disable=consider-using-with
+        subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        logs.error('Failed to start local instance: %s', startup_script)
+        return False
     return True
 
 
