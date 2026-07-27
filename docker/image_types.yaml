@@ -8,6 +8,8 @@
   type: 'base'
 
 'dispatcher-image':
+  build_arg:
+    - 'base_image={registry}/base-image'
   depends_on:
     - 'base-image'
   dockerfile: 'docker/dispatcher-image/Dockerfile'
@@ -98,6 +100,8 @@
   type: 'builder'
 
 '{fuzzer}-{benchmark}-intermediate-runner':
+  build_arg:
+    - 'base_image={registry}/base-image'
   depends_on:
     - '{fuzzer}-{benchmark}-builder'
     - 'base-image'
@@ -111,6 +115,7 @@
   build_arg:
     - 'benchmark={benchmark}'
     - 'fuzzer={fuzzer}'
+    - 'registry={registry}'
   depends_on:
     - '{fuzzer}-{benchmark}-intermediate-runner'
   dockerfile: 'docker/benchmark-runner/Dockerfile'

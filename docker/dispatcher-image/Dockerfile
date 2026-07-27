@@ -14,7 +14,8 @@
 
 FROM gcr.io/oss-fuzz-base/base-clang@sha256:05774d8e388cb4975662c8eb25217e38a799d720b622e5c5d8abb79a76b49e53 AS base-clang
 
-FROM gcr.io/fuzzbench/base-image
+ARG base_image=localhost/fuzzbench/base-image
+FROM $base_image
 
 ENV WORK /work
 WORKDIR $WORK

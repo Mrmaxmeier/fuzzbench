@@ -28,17 +28,18 @@
 
 ARG fuzzer
 ARG benchmark
+ARG registry=localhost/fuzzbench
 
 # We use Docker's multi-stage build feature to create a minimal runner image,
 # separate from the sometimes bulky builder images.
 
 # We take the already built builder image for the given fuzzer/benchmark pair
 # and refer to it as "builder", so we can copy the build artifacts from it.
-FROM gcr.io/fuzzbench/builders/$fuzzer/$benchmark AS builder
+FROM $registry/builders/$fuzzer/$benchmark AS builder
 
 # We base the runner image from the intermediate runner image, defined by the
 # runner.Dockerfile of each fuzzer.
-FROM gcr.io/fuzzbench/runners/$fuzzer/$benchmark-intermediate
+FROM $registry/runners/$fuzzer/$benchmark-intermediate
 
 # Install runtime dependencies for benchmarks.
 

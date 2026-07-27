@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM gcr.io/fuzzbench/base-image
+ARG base_image=localhost/fuzzbench/base-image
+FROM $base_image
 
 # Install and setup clang-11 for AFL/NEUZZ.
 RUN apt install -y clang-11 && \

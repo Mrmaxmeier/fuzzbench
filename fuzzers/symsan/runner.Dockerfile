@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#FROM gcr.io/fuzzbench/base-runner
-FROM gcr.io/fuzzbench/base-image
+#FROM localhost/fuzzbench/base-runner
+ARG base_image=localhost/fuzzbench/base-image
+FROM $base_image
 
 RUN apt-get update 
 RUN apt-get -y install git cmake wget build-essential autoconf libtool python3-pip python3-setuptools  apt-transport-https libboost-all-dev lsb-release software-properties-common

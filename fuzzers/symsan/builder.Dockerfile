@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#ARG parent_image=gcr.io/fuzzbench/base-builder
+#ARG parent_image=localhost/fuzzbench/base-builder
 ARG parent_image
 FROM $parent_image
 

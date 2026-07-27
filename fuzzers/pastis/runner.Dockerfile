@@ -1,4 +1,5 @@
-FROM gcr.io/fuzzbench/base-image
+ARG base_image=localhost/fuzzbench/base-image
+FROM $base_image
 
 # NOTE Comiple Python again with `--enabled-shared`.
 
