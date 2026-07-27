@@ -51,9 +51,7 @@ class Trial(Base):
     time_started = Column(DateTime(), nullable=True)
     time_ended = Column(DateTime(), nullable=True)
 
-    # Columns used for preemptible experiments.
-    preemptible = Column(Boolean, default=False, nullable=False)
-    preempted = Column(Boolean, default=False, nullable=False)
+    # Group number used to pick a trial's corpus in random corpus fuzzing.
     trial_group_num = Column(Integer, nullable=True)
 
     # Every trial has snapshots which is basically the saved state of that trial

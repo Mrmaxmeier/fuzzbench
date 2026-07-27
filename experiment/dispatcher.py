@@ -101,13 +101,11 @@ class Experiment:  # pylint: disable=too-many-instance-attributes
         self.num_trials = self.config['trials']
         self.experiment_name = self.config['experiment']
         self.git_hash = self.config['git_hash']
-        self.preemptible = self.config.get('preemptible_runners')
         self.micro_experiment = self.config.get('micro_experiment')
 
 
 def build_images_for_trials(fuzzers: List[str], benchmarks: List[str],
-                            num_trials: int,
-                            preemptible: bool) -> List[models.Trial]:
+                            num_trials: int) -> List[models.Trial]:
     """Builds the images needed to run |experiment| and returns a list of trials
     that can be run for experiment. This is the number of trials specified in
     experiment times each pair of fuzzer+benchmark that builds successfully."""
@@ -125,7 +123,6 @@ def build_images_for_trials(fuzzers: List[str], benchmarks: List[str],
             models.Trial(fuzzer=fuzzer,
                          experiment=experiment_name,
                          benchmark=benchmark,
-                         preemptible=preemptible,
                          trial_group_num=trial) for trial in range(num_trials)
         ]
         trials.extend(fuzzer_benchmark_trials)
@@ -149,8 +146,7 @@ def dispatcher_main():
     _initialize_experiment_in_db(experiment.config)
 
     trials = build_images_for_trials(experiment.fuzzers, experiment.benchmarks,
-                                     experiment.num_trials,
-                                     experiment.preemptible)
+                                     experiment.num_trials)
     _initialize_trials_in_db(trials)
 
     if experiment.micro_experiment:

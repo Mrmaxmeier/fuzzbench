@@ -63,21 +63,15 @@ def datetime_now() -> datetime.datetime:
 # confusing to readers. There may also be weird situations where it is
 # acceptable to use a list or query (because of duck typing) but type hints
 # prevents us unless handled intelligently.
-def get_nonpreempted_trials(experiment: str):
-    """Returns a query of trials in |experiment|."""
-    not_preempted_filter = models.Trial.preempted == False  # pylint: disable=singleton-comparison
-    return get_experiment_trials(experiment).filter(not_preempted_filter)
-
-
 def get_pending_trials(experiment: str):
     """Returns trial entities from |experiment| that have not run yet."""
-    return get_nonpreempted_trials(experiment).filter(~STARTED_TRIALS_FILTER)
+    return get_experiment_trials(experiment).filter(~STARTED_TRIALS_FILTER)
 
 
 def get_running_trials(experiment: str):
     """Returns trial entities from |experiment| that have been marked started
     but not marked ended."""
-    return get_nonpreempted_trials(experiment).filter(
+    return get_experiment_trials(experiment).filter(
         models.Trial.time_ended.is_(None), STARTED_TRIALS_FILTER)
 
 
@@ -87,7 +81,7 @@ def get_expired_trials(experiment: str, max_total_time: int):
     earliest_nonexpired_dt = datetime_now() - datetime.timedelta(
         seconds=max_total_time + GRACE_TIME_SECONDS)
 
-    return get_nonpreempted_trials(experiment).filter(
+    return get_experiment_trials(experiment).filter(
         models.Trial.time_started <= earliest_nonexpired_dt).filter(
             models.Trial.time_ended.is_(None))
 
@@ -264,11 +258,10 @@ def start_trials(trials, experiment_config: dict, pool, core_allocation=None):
     trial_id_mapping = {trial.id: trial for trial in trials}
 
     # Shuffle trials so that we don't create trials for the same fuzzer
-    # benchmark close to one another. This *may* make the preemption rate more
-    # evenly distributed across fuzzer benchmarks which will help if we don't
-    # end up completing the target number of trials. A more rigourous approach
-    # where we increase the distance in between trials for the same
-    # fuzzer-benchmark might be useful.
+    # benchmark close to one another. This spreads the risk of not completing
+    # the target number of trials more evenly across fuzzer benchmarks. A more
+    # rigourous approach where we increase the distance in between trials for
+    # the same fuzzer-benchmark might be useful.
     shuffled_trials = list(trial_id_mapping.values())
     random.shuffle(shuffled_trials)
 
@@ -304,7 +297,6 @@ class TrialProxy:  # pylint: disable=too-many-instance-attributes
         self.benchmark = trial.benchmark
         self.time_started = trial.time_started
         self.time_ended = trial.time_ended
-        self.preemptible = trial.preemptible
         self.cpuset = None
         self.trial_group_num = trial.trial_group_num
 
@@ -330,8 +322,8 @@ def _start_trial(trial: TrialProxy, experiment_config: dict, cpuset=None):
     _initialize_logs(experiment_config['experiment'])
     logger.info('Start trial %d.', trial.id)
     started = create_trial_instance(trial.fuzzer, trial.benchmark, trial.id,
-                                    experiment_config, trial.preemptible,
-                                    cpuset, trial.trial_group_num)
+                                    experiment_config, cpuset,
+                                    trial.trial_group_num)
     if started:
         trial.time_started = datetime_now()
         trial.cpuset = cpuset
@@ -389,12 +381,10 @@ def create_trial_instance(  # pylint: disable=too-many-arguments
         benchmark: str,
         trial_id: int,
         experiment_config: dict,
-        preemptible: bool,
         cpuset=None,
         trial_group_num: int = 0) -> bool:
     """Create or start a trial instance for a specific
     trial_id,fuzzer,benchmark."""
-    del preemptible  # Kept for API compatibility; local runs ignore preemptible.
     instance_name = experiment_utils.get_trial_instance_name(
         experiment_config['experiment'], trial_id)
     startup_script = render_startup_script_template(instance_name, fuzzer,

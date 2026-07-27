@@ -216,8 +216,7 @@ def get_trial_ids(experiment: str, fuzzer: str, benchmark: str):
             trial_id_tuple[0]
             for trial_id_tuple in session.query(models.Trial.id).filter(
                 models.Trial.experiment == experiment, models.Trial.fuzzer ==
-                fuzzer, models.Trial.benchmark == benchmark,
-                ~models.Trial.preempted)
+                fuzzer, models.Trial.benchmark == benchmark)
         ]
     return trial_ids
 

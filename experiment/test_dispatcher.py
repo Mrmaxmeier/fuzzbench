@@ -96,8 +96,7 @@ def test_build_images_for_trials_base_images_fail(dispatcher_experiment):
     with pytest.raises(Exception):
         dispatcher.build_images_for_trials(dispatcher_experiment.fuzzers,
                                            dispatcher_experiment.benchmarks,
-                                           dispatcher_experiment.num_trials,
-                                           dispatcher_experiment.preemptible)
+                                           dispatcher_experiment.num_trials)
 
 
 @mock.patch('experiment.build.builder.build_base_images')
@@ -113,8 +112,7 @@ def test_build_images_for_trials_build_success(_, dispatcher_experiment):
                         return_value=fuzzer_benchmarks):
             trials = dispatcher.build_images_for_trials(
                 dispatcher_experiment.fuzzers, dispatcher_experiment.benchmarks,
-                dispatcher_experiment.num_trials,
-                dispatcher_experiment.preemptible)
+                dispatcher_experiment.num_trials)
     trial_fuzzer_benchmarks = [
         (trial.fuzzer, trial.benchmark) for trial in trials
     ]
@@ -145,8 +143,7 @@ def test_build_images_for_trials_benchmark_fail(_, dispatcher_experiment):
             assert len(set(dispatcher_experiment.benchmarks)) > 1
             trials = dispatcher.build_images_for_trials(
                 dispatcher_experiment.fuzzers, dispatcher_experiment.benchmarks,
-                dispatcher_experiment.num_trials,
-                dispatcher_experiment.preemptible)
+                dispatcher_experiment.num_trials)
     for trial in trials:
         assert trial.benchmark == successful_benchmark
 
@@ -180,8 +177,8 @@ def test_build_images_for_trials_fuzzer_fail(_, dispatcher_experiment):
                     return_value=benchmarks):
         with mock.patch('experiment.build.builder.build_all_fuzzer_benchmarks',
                         side_effect=mocked_build_all_fuzzer_benchmarks):
-            trials = dispatcher.build_images_for_trials(fuzzers, benchmarks,
-                                                        num_trials, False)
+            trials = dispatcher.build_images_for_trials(
+                fuzzers, benchmarks, num_trials)
 
     trial_fuzzer_benchmarks = [
         (trial.fuzzer, trial.benchmark) for trial in trials

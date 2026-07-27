@@ -36,8 +36,7 @@ def get_experiment_data(experiment_names, main_experiment_benchmarks=None):
             .join(Crash,
                   and_(Snapshot.time == Crash.time,
                        Snapshot.trial_id == Crash.trial_id), isouter=True)\
-            .filter(Experiment.name.in_(experiment_names))\
-            .filter(Trial.preempted.is_(False))
+            .filter(Experiment.name.in_(experiment_names))
         if main_experiment_benchmarks:
             snapshots_query = snapshots_query.filter(
                 Trial.benchmark.in_(main_experiment_benchmarks))

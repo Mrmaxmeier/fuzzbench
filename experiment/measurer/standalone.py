@@ -55,7 +55,6 @@ def _initialize_db():
     trial = models.Trial(fuzzer=os.environ['FUZZER'],
                          experiment='oss-fuzz-on-demand',
                          benchmark=os.environ['BENCHMARK'],
-                         preemptible=False,
                          time_started=scheduler.datetime_now(),
                          time_ended=scheduler.datetime_now())
     db_utils.add_all([trial])

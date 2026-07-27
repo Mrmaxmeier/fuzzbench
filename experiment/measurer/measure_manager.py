@@ -218,7 +218,7 @@ def _query_ids_of_measured_trials(experiment: str):
         trials_and_snapshots_query = session.query(models.Snapshot).options(
             orm.joinedload('trial'))
         experiment_trials_filter = models.Snapshot.trial.has(
-            experiment=experiment, preempted=False)
+            experiment=experiment)
         experiment_trials_and_snapshots_query = (
             trials_and_snapshots_query.filter(experiment_trials_filter))
         experiment_snapshot_trial_ids_query = (
@@ -235,11 +235,9 @@ def _query_unmeasured_trials(experiment: str):
         trial_query = session.query(models.Trial)
         no_snapshots_filter = ~models.Trial.id.in_(ids_of_trials_with_snapshots)
         started_trials_filter = ~models.Trial.time_started.is_(None)
-        nonpreempted_trials_filter = ~models.Trial.preempted
         experiment_trials_filter = models.Trial.experiment == experiment
         return trial_query.filter(experiment_trials_filter, no_snapshots_filter,
-                                  started_trials_filter,
-                                  nonpreempted_trials_filter)
+                                  started_trials_filter)
 
 
 def _get_unmeasured_first_snapshots(

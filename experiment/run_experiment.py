@@ -158,8 +158,6 @@ def read_and_validate_experiment_config(config_filename: str) -> Dict:
             Requirement(False, bool, False, ''),
         'merge_with_nonprivate':
             Requirement(False, bool, False, ''),
-        'preemptible_runners':
-            Requirement(False, bool, False, ''),
         'runner_machine_type':
             Requirement(False, str, True, ''),
         'runner_num_cpu_cores':
