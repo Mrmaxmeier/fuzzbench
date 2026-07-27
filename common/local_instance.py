@@ -13,10 +13,18 @@
 # limitations under the License.
 """Local experiment instance helpers."""
 
+import shutil
 import subprocess
 from typing import Optional
 
 from common import logs
+
+
+def _get_bash() -> str:
+    """Returns the path to bash. The startup script is bash, and this runs on
+    the host, where bash is not necessarily at /bin/bash (NixOS ships only
+    /bin/sh)."""
+    return shutil.which('bash') or '/bin/bash'
 
 
 def run_local_instance(startup_script: Optional[str] = None) -> bool:
@@ -24,7 +32,7 @@ def run_local_instance(startup_script: Optional[str] = None) -> bool:
     |startup_script| in the background."""
     if not startup_script:
         return False
-    command = ['/bin/bash', startup_script]
+    command = [_get_bash(), startup_script]
     try:
         # pylint: disable=consider-using-with
         subprocess.Popen(

@@ -19,16 +19,26 @@ from unittest import mock
 from common import local_instance
 
 
+@mock.patch('shutil.which', return_value='/usr/local/bin/bash')
 @mock.patch('subprocess.Popen')
-def test_run_local_instance_redirects_output(mocked_popen):
+def test_run_local_instance_redirects_output(mocked_popen, _mocked_which):
     """run_local_instance must not use an unread PIPE (deadlock risk)."""
     mocked_popen.return_value = mock.Mock()
     assert local_instance.run_local_instance('/tmp/startup.sh')
     mocked_popen.assert_called_once_with(
-        ['/bin/bash', '/tmp/startup.sh'],
+        ['/usr/local/bin/bash', '/tmp/startup.sh'],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+
+
+@mock.patch('shutil.which', return_value=None)
+@mock.patch('subprocess.Popen')
+def test_run_local_instance_falls_back_to_bin_bash(mocked_popen, _mocked_which):
+    """run_local_instance falls back to /bin/bash when bash is not on PATH."""
+    mocked_popen.return_value = mock.Mock()
+    assert local_instance.run_local_instance('/tmp/startup.sh')
+    assert mocked_popen.call_args[0][0] == ['/bin/bash', '/tmp/startup.sh']
 
 
 @mock.patch('subprocess.Popen', side_effect=OSError('boom'))
