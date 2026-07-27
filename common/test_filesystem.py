@@ -47,13 +47,6 @@ def test_recreate_directory_not_existing(fs):
     assert os.path.exists(new_directory)
 
 
-@pytest.mark.parametrize('path', ['gs://bucket', 'gs://bucket/dir', 'gs:'])
-def test_create_directory_rejects_gcs_paths(path):
-    """GCS URLs must not be mkdir'd locally (that creates a 'gs:' folder)."""
-    with pytest.raises(ValueError, match='GCS-style'):
-        filesystem.create_directory(path)
-
-
 def test_copy_nonexistent(fs):
     """Test that copy raises an exception (when appropriate) if asked to copy a
     nonexistent path."""

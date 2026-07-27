@@ -15,25 +15,6 @@
 
 from common import local_filestore
 
-GCS_GSUTIL_PREFIX = 'gs://'
-GCS_HTTP_PREFIX = 'https://storage.googleapis.com/'
-
-
-def is_gcs_filestore_path(filestore_path):
-    """Returns True if |filestore_path| is a GCS URL. Assumes that GCS paths are
-    using gs:// and not http."""
-    return filestore_path.startswith(GCS_GSUTIL_PREFIX)
-
-
-def get_user_facing_path(filestore_path):
-    """Returns the most user accessible version of |filestore_path|.
-    If |filestore_path| isn't a GCS URL, then it simply returns
-    |filestore_path|. If it is a GCS URL, then the HTTPS version of
-    |filestore_path| is returned."""
-    if not is_gcs_filestore_path(filestore_path):
-        return filestore_path
-    return filestore_path.replace(GCS_GSUTIL_PREFIX, GCS_HTTP_PREFIX)
-
 
 def cp(source, destination, recursive=False, expect_zero=True, parallel=False):  # pylint: disable=invalid-name,unused-argument
     """Copies |source| to |destination|. If |expect_zero| is True then it can

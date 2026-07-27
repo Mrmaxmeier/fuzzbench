@@ -15,8 +15,6 @@
 
 from unittest import mock
 
-import pytest
-
 from common import filestore_utils
 from common import new_process
 
@@ -113,25 +111,3 @@ def test_gsutil_options_ignored(fs, experiment):  # pylint: disable=invalid-name
         mocked_execute.assert_called_with(
             ['rsync', '--delete', '-r', f'{LOCAL_DIR}/', LOCAL_DIR_2],
             expect_zero=True)
-
-
-@pytest.mark.parametrize(('filestore_path', 'expected_result'),
-                         [('gs://filestore', True), ('/filestore', False),
-                          ('C:\\Windows\\filestore', False)])
-def test_is_gcs_filestore_path(filestore_path, expected_result):
-    """Tests that is_gcs_filestore_path returns the correct result for different
-    filestore paths."""
-    assert (filestore_utils.is_gcs_filestore_path(filestore_path) ==
-            expected_result)
-
-
-@pytest.mark.parametrize(
-    ('filestore_path', 'expected_result'),
-    [('gs://filestore', 'https://storage.googleapis.com/filestore'),
-     ('/filestore', '/filestore'),
-     ('C:\\Windows\\filestore', 'C:\\Windows\\filestore')])
-def test_get_user_accessible_path(filestore_path, expected_result):
-    """Tests that get_user_accessible_path returns the correct result for
-    different filestore paths."""
-    assert filestore_utils.get_user_facing_path(
-        filestore_path) == expected_result
