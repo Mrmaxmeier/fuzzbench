@@ -53,16 +53,7 @@ logger = logs.Logger()
 
 NUM_RETRIES = 3
 RETRY_DELAY = 3
-FAIL_WAIT_SECONDS = 30
-SNAPSHOT_QUEUE_GET_TIMEOUT = 1
-SNAPSHOTS_BATCH_SAVE_SIZE = 100
 MEASUREMENT_LOOP_WAIT = 10
-
-
-def exists_in_experiment_filestore(path: pathlib.Path) -> bool:
-    """Returns True if |path| exists in the experiment_filestore."""
-    return filestore_utils.ls(exp_path.filestore(path),
-                              must_exist=False).retcode == 0
 
 
 def measure_main(experiment_config):
@@ -85,125 +76,6 @@ def measure_main(experiment_config):
     coverage_utils.generate_coverage_reports(experiment_config)
 
     logger.info('Finished measuring.')
-
-
-def _process_init(cores_queue):
-    """Cpu pin for each pool process"""
-    cpu = cores_queue.get()
-    if sys.platform == 'linux':
-        os.sched_setaffinity(0, {cpu})
-
-
-def measure_loop(experiment: str,
-                 max_total_time: int,
-                 measurers_cpus=None,
-                 runners_cpus=None,
-                 region_coverage=False):
-    """Continuously measure trials for |experiment|."""
-    logger.info('Start measure_loop.')
-
-    pool_args = get_pool_args(measurers_cpus, runners_cpus)
-
-    with multiprocessing.Pool(
-            *pool_args) as pool, multiprocessing.Manager() as manager:
-        set_up_coverage_binaries(pool, experiment)
-        # Using Multiprocessing.Queue will fail with a complaint about
-        # inheriting queue.
-        # pytype: disable=attribute-error
-        multiprocessing_queue = manager.Queue()
-        while True:
-            try:
-                # Get whether all trials have ended before we measure to prevent
-                # races.
-                all_trials_ended = scheduler.all_trials_ended(experiment)
-
-                if not measure_all_trials(experiment, max_total_time, pool,
-                                          multiprocessing_queue,
-                                          region_coverage):
-                    # We didn't measure any trials.
-                    if all_trials_ended:
-                        # There are no trials producing snapshots to measure.
-                        # Given that we couldn't measure any snapshots, we won't
-                        # be able to measure any the future, so stop now.
-                        break
-            except Exception:  # pylint: disable=broad-except
-                logger.error('Error occurred during measuring.')
-
-            time.sleep(FAIL_WAIT_SECONDS)
-
-    logger.info('Finished measure loop.')
-
-
-def measure_all_trials(experiment: str, max_total_time: int, pool,
-                       multiprocessing_queue, region_coverage) -> bool:
-    """Get coverage data (with coverage runs) for all active trials. Note that
-    this should not be called unless multiprocessing.set_start_method('spawn')
-    was called first. Otherwise it will use fork which breaks logging."""
-    logger.info('Measuring all trials.')
-
-    experiment_folders_dir = experiment_utils.get_experiment_folders_dir()
-    if not exists_in_experiment_filestore(experiment_folders_dir):
-        return True
-
-    max_cycle = _time_to_cycle(max_total_time)
-    unmeasured_snapshots = get_unmeasured_snapshots(experiment, max_cycle)
-
-    if not unmeasured_snapshots:
-        return False
-
-    measure_trial_coverage_args = [
-        (unmeasured_snapshot, max_cycle, multiprocessing_queue, region_coverage)
-        for unmeasured_snapshot in unmeasured_snapshots
-    ]
-
-    result = pool.starmap_async(measure_trial_coverage,
-                                measure_trial_coverage_args)
-
-    # Poll the queue for snapshots and save them in batches until the pool is
-    # done processing each unmeasured snapshot. Then save any remaining
-    # snapshots.
-    snapshots = []  # type: ignore[var-annotated]
-    snapshots_measured = False
-
-    def save_snapshots():
-        """Saves measured snapshots if there were any, resets |snapshots| to an
-        empty list and records the fact that snapshots have been measured."""
-        if not snapshots:
-            return
-
-        db_utils.add_all(snapshots)
-        snapshots.clear()
-        nonlocal snapshots_measured
-        snapshots_measured = True
-
-    while True:
-        try:
-            snapshot = multiprocessing_queue.get(
-                timeout=SNAPSHOT_QUEUE_GET_TIMEOUT)
-            snapshots.append(snapshot)
-        except queue.Empty:
-            if result.ready():
-                # If "ready" that means pool has finished calling on each
-                # unmeasured_snapshot. Since it is finished and the queue is
-                # empty, we can stop checking the queue for more snapshots.
-                logger.debug(
-                    'Finished call to map with measure_trial_coverage.')
-                break
-
-            if len(snapshots) >= SNAPSHOTS_BATCH_SAVE_SIZE * .75:
-                # Save a smaller batch size if we can make an educated guess
-                # that we will have to wait for the next snapshot.
-                save_snapshots()
-                continue
-
-        if len(snapshots) >= SNAPSHOTS_BATCH_SAVE_SIZE and not result.ready():
-            save_snapshots()
-
-    # If we have any snapshots left save them now.
-    save_snapshots()
-
-    logger.info('Done measuring all trials.')
-    return snapshots_measured
 
 
 def _time_to_cycle(time_in_seconds: float) -> int:
@@ -538,35 +410,6 @@ def get_fuzzer_stats(stats_filestore_path):
     return json.loads(stats_str)
 
 
-def measure_trial_coverage(measure_req, max_cycle: int,
-                           multiprocessing_queue: multiprocessing.Queue,
-                           region_coverage):
-    """Measure the coverage obtained by |trial_num| on |benchmark| using
-    |fuzzer|."""
-    initialize_logs()
-    logger.debug('Measuring trial: %d.', measure_req.trial_id)
-    min_cycle = measure_req.cycle
-    # Add 1 to ensure we measure the last cycle.
-    for cycle in range(min_cycle, max_cycle + 1):
-        try:
-            snapshot = measure_snapshot_coverage(measure_req.fuzzer,
-                                                 measure_req.benchmark,
-                                                 measure_req.trial_id, cycle,
-                                                 region_coverage)
-            if not snapshot:
-                break
-            multiprocessing_queue.put(snapshot)
-        except Exception:  # pylint: disable=broad-except
-            logger.error('Error measuring cycle.',
-                         extras={
-                             'fuzzer': measure_req.fuzzer,
-                             'benchmark': measure_req.benchmark,
-                             'trial_id': str(measure_req.trial_id),
-                             'cycle': str(cycle),
-                         })
-    logger.debug('Done measuring trial: %d.', measure_req.trial_id)
-
-
 def measure_snapshot_coverage(  # pylint: disable=too-many-locals
         fuzzer: str, benchmark: str, trial_num: int, cycle: int,
         region_coverage: bool) -> models.Snapshot:
@@ -762,23 +605,6 @@ def measure_manager_inner_loop(experiment: str, max_cycle: int, request_queue,
     return True
 
 
-def get_pool_args(measurers_cpus, runners_cpus):
-    """Return pool args based on measurer cpus and runner cpus arguments."""
-    if measurers_cpus is None or runners_cpus is None:
-        return ()
-
-    local_experiment = experiment_utils.is_local_experiment()
-    if not local_experiment:
-        return (measurers_cpus,)
-
-    cores_queue = multiprocessing.Queue()
-    logger.info('Scheduling measurers from core %d to %d.', runners_cpus,
-                runners_cpus + measurers_cpus - 1)
-    for cpu in range(runners_cpus, runners_cpus + measurers_cpus):
-        cores_queue.put(cpu)
-    return (measurers_cpus, _process_init, (cores_queue,))
-
-
 def measure_manager_loop(experiment: str,
                          max_total_time: int,
                          measurers_cpus=None,
@@ -832,7 +658,7 @@ def main():
     experiment_name = experiment_utils.get_experiment_name()
 
     try:
-        measure_loop(experiment_name, int(sys.argv[1]))
+        measure_manager_loop(experiment_name, int(sys.argv[1]))
     except Exception as error:
         logs.error('Error conducting experiment.')
         raise error

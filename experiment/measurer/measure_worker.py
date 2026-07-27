@@ -62,8 +62,14 @@ class BaseMeasureWorker:
                 measured_snapshot = measure_manager.measure_snapshot_coverage(
                     request.fuzzer, request.benchmark, request.trial_id,
                     request.cycle, self.region_coverage)
-            except:
-                import traceback; traceback.print_exc()
+            except Exception:  # pylint: disable=broad-except
+                logger.error('Error measuring cycle.',
+                             extras={
+                                 'fuzzer': request.fuzzer,
+                                 'benchmark': request.benchmark,
+                                 'trial_id': str(request.trial_id),
+                                 'cycle': str(request.cycle),
+                             })
             self.put_result_in_response_queue(measured_snapshot, request)
             time.sleep(MEASUREMENT_TIMEOUT)
 

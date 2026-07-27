@@ -25,7 +25,6 @@ from database import models
 from database import utils as db_utils
 from experiment.build import build_utils
 from experiment.measurer import measure_manager
-from test_libs import utils as test_utils
 import experiment.measurer.datatypes as measurer_datatypes
 
 TEST_DATA_PATH = os.path.join(os.path.dirname(__file__), 'test_data')
@@ -163,53 +162,6 @@ def test_generate_summary(mocked_get_coverage_binary, mocked_execute,
     args = mocked_execute.call_args_list[0]
     assert args[0][0] == expected
     assert args[1]['output_file'].name == '/reports/cov_summary.txt'
-
-
-@mock.patch('common.logs.error')
-@mock.patch('experiment.measurer.measure_manager.initialize_logs')
-@mock.patch('multiprocessing.Queue')
-@mock.patch('experiment.measurer.measure_manager.measure_snapshot_coverage')
-def test_measure_trial_coverage(mocked_measure_snapshot_coverage, mocked_queue,
-                                _, __):
-    """Tests that measure_trial_coverage works as expected."""
-    min_cycle = 1
-    max_cycle = 10
-    measure_request = measurer_datatypes.SnapshotMeasureRequest(
-        FUZZER, BENCHMARK, TRIAL_NUM, min_cycle)
-    measure_manager.measure_trial_coverage(measure_request, max_cycle,
-                                           mocked_queue(), False)
-    expected_calls = [
-        mock.call(FUZZER, BENCHMARK, TRIAL_NUM, cycle, False)
-        for cycle in range(min_cycle, max_cycle + 1)
-    ]
-    assert mocked_measure_snapshot_coverage.call_args_list == expected_calls
-
-
-@mock.patch('common.filestore_utils.ls')
-@mock.patch('common.filestore_utils.rsync')
-def test_measure_all_trials_not_ready(mocked_rsync, mocked_ls, experiment):
-    """Test running measure_all_trials before it is ready works as intended."""
-    mocked_ls.return_value = new_process.ProcessResult(1, '', False)
-    assert measure_manager.measure_all_trials(
-        experiment_utils.get_experiment_name(), MAX_TOTAL_TIME,
-        test_utils.MockPool(), queue.Queue(), False)
-    assert not mocked_rsync.called
-
-
-@mock.patch('multiprocessing.pool.ThreadPool', test_utils.MockPool)
-@mock.patch('common.new_process.execute')
-@mock.patch('common.filesystem.directories_have_same_files')
-@pytest.mark.skip(reason='See crbug.com/1012329')
-def test_measure_all_trials_no_more(mocked_directories_have_same_files,
-                                    mocked_execute):
-    """Test measure_all_trials does what is intended when the experiment is
-    done."""
-    mocked_directories_have_same_files.return_value = True
-    mocked_execute.return_value = new_process.ProcessResult(0, '', False)
-    mock_pool = test_utils.MockPool()
-    assert not measure_manager.measure_all_trials(
-        experiment_utils.get_experiment_name(), MAX_TOTAL_TIME, mock_pool,
-        queue.Queue(), False)
 
 
 @mock.patch('common.new_process.execute')
@@ -352,63 +304,6 @@ def test_extract_corpus(archive_name, tmp_path):
     assert expected_corpus_files.issubset(set(os.listdir(tmp_path)))
 
 
-@mock.patch('time.sleep', return_value=None)
-@mock.patch('experiment.measurer.measure_manager.set_up_coverage_binaries')
-@mock.patch('experiment.measurer.measure_manager.measure_all_trials',
-            return_value=False)
-@mock.patch('multiprocessing.Manager')
-@mock.patch('multiprocessing.pool')
-@mock.patch('experiment.scheduler.all_trials_ended', return_value=True)
-def test_measure_loop_end(_, __, ___, ____, _____, ______, experiment_config,
-                          db_experiment):
-    """Tests that measure_loop stops when there is nothing left to measure. In
-    this test, there is nothing left to measure on the first call."""
-    measure_manager.measure_loop(experiment_config, 100)
-    # If everything went well, we should get to this point without any
-    # exceptions.
-
-
-@mock.patch('time.sleep', return_value=None)
-@mock.patch('experiment.measurer.measure_manager.set_up_coverage_binaries')
-@mock.patch('multiprocessing.Manager')
-@mock.patch('multiprocessing.pool')
-@mock.patch('experiment.scheduler.all_trials_ended', return_value=True)
-@mock.patch('experiment.measurer.measure_manager.measure_all_trials')
-def test_measure_loop_loop_until_end(mocked_measure_all_trials, _, __, ___,
-                                     ____, _____, experiment_config,
-                                     db_experiment):
-    """Test that measure loop will stop measuring when all trials have ended. In
-    this test, there is more to measure for a few iterations, then the mocked
-    functions will indicate that there is nothing left to measure."""
-    call_count = 0
-    # Scheduler is running.
-    loop_iterations = 6
-
-    def mock_measure_all_trials(*args, **kwargs):
-        # Do the assertions here so that there will be an assert fail on failure
-        # instead of an infinite loop.
-        nonlocal call_count
-        call_count += 1
-        if call_count >= loop_iterations:
-            return False
-        return True
-
-    mocked_measure_all_trials.side_effect = mock_measure_all_trials
-    measure_manager.measure_loop(experiment_config, 100)
-    assert call_count == loop_iterations
-
-
-@mock.patch('common.new_process.execute')
-def test_path_exists_in_experiment_filestore(mocked_execute, environ):
-    """Tests that remote_dir_exists calls local filestore ls properly."""
-    work_dir = '/work'
-    os.environ['WORK'] = work_dir
-    os.environ['EXPERIMENT_FILESTORE'] = '/cloud-bucket'
-    os.environ['EXPERIMENT'] = 'example-experiment'
-    measure_manager.exists_in_experiment_filestore(work_dir)
-    mocked_execute.assert_called_with(
-        ['ls', '-1', '/cloud-bucket/example-experiment'],
-        expect_zero=False)
 
 
 def test_consume_unmapped_type_from_response_queue():
