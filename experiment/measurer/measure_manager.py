@@ -29,7 +29,6 @@ import time
 from typing import List
 import queue
 from sqlalchemy import func
-from sqlalchemy import orm
 
 from common import benchmark_utils
 from common import experiment_utils
@@ -87,8 +86,10 @@ def _query_ids_of_measured_trials(experiment: str):
     """Returns a query of the ids of trials in |experiment| that have measured
     snapshots."""
     with db_utils.session_scope() as session:
-        trials_and_snapshots_query = session.query(models.Snapshot).options(
-            orm.joinedload('trial'))
+        # No eager load of Snapshot.trial: the query below narrows to
+        # Snapshot.trial_id, so the relationship is never read. SQLAlchemy 2.x
+        # also rejects the string form this used to pass to joinedload().
+        trials_and_snapshots_query = session.query(models.Snapshot)
         experiment_trials_filter = models.Snapshot.trial.has(
             experiment=experiment)
         experiment_trials_and_snapshots_query = (

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for measure_manager.py."""
+import datetime
 import os
 import shutil
 from unittest import mock
@@ -54,6 +55,36 @@ def db_experiment(experiment_config, db):
     db_utils.add_all([experiment])
     # yield so that the experiment exists until the using function exits.
     yield
+
+
+def test_get_unmeasured_snapshots_executes_against_db(experiment_config,
+                                                      db_experiment):
+    """Tests that the snapshot queries actually execute. These run only inside
+    a live experiment, so mocking them hides breakage from SQLAlchemy version
+    changes -- a string passed to joinedload() survived the 2.x upgrade and
+    only failed once the measurer ran for real."""
+    experiment_name = experiment_config['experiment']
+    trial = models.Trial(fuzzer=FUZZER,
+                         benchmark=BENCHMARK,
+                         experiment=experiment_name,
+                         time_started=datetime.datetime.now())
+    db_utils.add_all([trial])
+
+    # A started trial with no snapshots yet is unmeasured, at cycle 0.
+    snapshots = measure_manager.get_unmeasured_snapshots(experiment_name,
+                                                         max_cycle=10)
+    assert [(s.trial_id, s.cycle) for s in snapshots] == [(trial.id, 0)]
+
+    # Once it has a snapshot, the next cycle is what needs measuring.
+    db_utils.add_all([
+        models.Snapshot(time=0,
+                        trial_id=trial.id,
+                        edges_covered=1,
+                        fuzzer_stats={})
+    ])
+    snapshots = measure_manager.get_unmeasured_snapshots(experiment_name,
+                                                         max_cycle=10)
+    assert [(s.trial_id, s.cycle) for s in snapshots] == [(trial.id, 1)]
 
 
 def test_get_current_coverage(fs, experiment):
