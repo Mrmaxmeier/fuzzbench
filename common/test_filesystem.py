@@ -47,6 +47,57 @@ def test_recreate_directory_not_existing(fs):
     assert os.path.exists(new_directory)
 
 
+def test_recreate_directory_removes_subdirectories(fs):
+    """Tests that recreate_directory empties nested contents, not just the
+    files directly inside the directory."""
+    new_directory = 'new-directory'
+    nested = os.path.join(new_directory, 'a', 'b')
+    os.makedirs(nested)
+    nested_file = os.path.join(nested, 'file')
+    with open(nested_file, 'w', encoding='utf-8') as file_handle:
+        file_handle.write('hi')
+
+    filesystem.recreate_directory(new_directory)
+
+    assert os.path.isdir(new_directory)
+    assert os.listdir(new_directory) == []
+
+
+def test_recreate_directory_keeps_the_existing_directory(tmp_path):
+    """Tests that an existing directory is emptied in place rather than
+    removed and made again.
+
+    Removing it is what breaks under apptainer: the directory ships in the
+    image, so deleting it records an overlayfs whiteout, and creating one back
+    over that whiteout needs a trusted.overlay.* xattr that an unprivileged
+    process cannot set. The kernel returns EIO. Emptying in place never
+    deletes the directory, so no whiteout is ever recorded.
+
+    Checked by holding a file descriptor open across the call and then writing
+    through it. If the directory was unlinked and remade, the descriptor still
+    refers to the old detached inode and the new file does not appear at the
+    path. Comparing st_ino would not work: the kernel readily hands the same
+    inode number back to the replacement directory.
+    """
+    directory = tmp_path / 'directory'
+    directory.mkdir()
+    (directory / 'file').write_text('hi', encoding='utf-8')
+
+    dir_fd = os.open(str(directory), os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        filesystem.recreate_directory(str(directory))
+
+        assert directory.is_dir()
+        assert not list(directory.iterdir())
+
+        probe_fd = os.open('probe', os.O_CREAT | os.O_WRONLY, dir_fd=dir_fd)
+        os.close(probe_fd)
+        assert (directory /
+                'probe').exists(), ('the directory was replaced, not emptied')
+    finally:
+        os.close(dir_fd)
+
+
 def test_copy_nonexistent(fs):
     """Test that copy raises an exception (when appropriate) if asked to copy a
     nonexistent path."""

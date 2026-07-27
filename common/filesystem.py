@@ -34,7 +34,26 @@ def is_subpath(path, possible_subpath):
 
 
 def recreate_directory(directory, create_parents=True):
-    """Recreates |directory|."""
+    """Recreates |directory|, leaving it empty.
+
+    An existing directory is emptied in place rather than removed and made
+    again. The two are equivalent on a normal filesystem, but not on an
+    overlay: removing a directory that exists in the lower layer records a
+    whiteout, and creating one back over that whiteout needs the overlay to
+    set a trusted.overlay.* xattr, which requires CAP_SYS_ADMIN. Unprivileged
+    -- which is how apptainer runs -- that fails with EIO. The runner's
+    /out/corpus, /out/results and corpus-archives all ship inside the image,
+    so every one of them hit this.
+    """
+    if os.path.isdir(directory) and not os.path.islink(directory):
+        for name in os.listdir(directory):
+            path = os.path.join(str(directory), name)
+            if os.path.isdir(path) and not os.path.islink(path):
+                shutil.rmtree(path, ignore_errors=True)
+            else:
+                os.remove(path)
+        return
+
     shutil.rmtree(directory, ignore_errors=True)
     if create_parents:
         os.makedirs(directory)

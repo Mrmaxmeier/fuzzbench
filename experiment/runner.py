@@ -68,8 +68,10 @@ def _clean_seed_corpus(seed_corpus_dir):
 
     if environment.get('NO_SEEDS'):
         logs.info('NO_SEEDS specified, deleting seed corpus files.')
-        shutil.rmtree(seed_corpus_dir)
-        os.mkdir(seed_corpus_dir)
+        # Empty in place rather than remove and remake: the seed dir ships in
+        # the image, so deleting it records an overlayfs whiteout that an
+        # unprivileged process cannot then create over.
+        filesystem.recreate_directory(seed_corpus_dir)
         return
 
     failed_to_move_files = []
@@ -106,7 +108,11 @@ def get_clusterfuzz_seed_corpus_path(fuzz_target_path):
 
 
 def _unpack_random_corpus(corpus_directory):
-    shutil.rmtree(corpus_directory)
+    # Empty the directory rather than removing it, and copy the source's
+    # *contents* in, so that the end state matches what removing the directory
+    # and copying onto the empty name used to produce. Removing it breaks
+    # under an overlay filesystem; see filesystem.recreate_directory.
+    filesystem.recreate_directory(corpus_directory)
 
     benchmark = environment.get('BENCHMARK')
     trial_group_num = environment.get('TRIAL_GROUP_NUM', 0)
@@ -114,16 +120,19 @@ def _unpack_random_corpus(corpus_directory):
     random_corpora_sub_dir = f'trial-group-{int(trial_group_num)}'
     random_corpus_dir = posixpath.join(random_corpora_dir, benchmark,
                                        random_corpora_sub_dir)
-    filestore_utils.cp(random_corpus_dir, corpus_directory, recursive=True)
+    filestore_utils.cp(posixpath.join(random_corpus_dir, '.'),
+                       corpus_directory,
+                       recursive=True)
 
 
 def _copy_custom_seed_corpus(corpus_directory):
     """Copy custom seed corpus provided by user"""
-    shutil.rmtree(corpus_directory)
+    # See _unpack_random_corpus for why this empties rather than removes.
+    filesystem.recreate_directory(corpus_directory)
     benchmark = environment.get('BENCHMARK')
     benchmark_custom_corpus_dir = posixpath.join(
         experiment_utils.get_custom_seed_corpora_filestore_path(), benchmark)
-    filestore_utils.cp(benchmark_custom_corpus_dir,
+    filestore_utils.cp(posixpath.join(benchmark_custom_corpus_dir, '.'),
                        corpus_directory,
                        recursive=True)
 
