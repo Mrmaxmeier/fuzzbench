@@ -73,3 +73,38 @@ make it work across multiple blades -> SLURM?
   fallback if needed: node-local staging, for a cluster w/o shared fs or if
   the fs chokes on hundreds of tasks faulting in the same image at job start.
   don't build that path up front.
+
+  --- apptainer spike, done. results: ---
+
+  conversion works, and docker save -> tar is unnecessary:
+    apptainer build runner.sif docker-daemon://localhost/fuzzbench/runners/...
+  skips the intermediate archive entirely. size: 2.36gb image -> 498mb sif
+  (squashfs). that ratio is what makes shared-fs distribution cheap.
+
+  runs as the invoking user (uid 1000), not root. fuzzing does not need root:
+  libfuzzer + asan ran 2000 execs, found coverage, added units, no complaints.
+  none of docker's --cap-add=SYS_PTRACE / SYS_NICE turned out to be required
+  for libfuzzer. other fuzzers are unverified -- anything using ptrace
+  (qemu-mode, symcc, honggfuzz) needs its own check before being trusted.
+
+  the one real blocker: /out is read-only under apptainer. it holds both the
+  immutable stuff (fuzz target, seeds) and everything the runner writes
+  (corpus, logs, stats, $OUTPUT_CORPUS_DIR). docker papered over this with the
+  container's writable layer.
+
+  fix: --overlay <dir>, NOT --writable-tmpfs. both make /out writable, but the
+  overlay keeps the image's own contents visible, persists to disk instead of
+  ram, and can live on the shared fs next to the sif. verified: fuzzed with
+  output into /out/corpus, files were still on the host after exit.
+  layout: <dir>/upper + <dir>/work, one per trial.
+
+  gotcha: startup-runner.sh does `nice -n -5`, which needs CAP_SYS_NICE. as
+  non-root that prints "cannot set niceness: Permission denied" -- but gnu
+  nice runs the command anyway and exits 0, so it degrades to a warning
+  rather than a failure. consequence is real though: runners lose their
+  priority boost over measurers, which is the thing niceness was there for.
+  decide whether to drop it or ask slurm for the priority instead.
+
+  side benefit: files land owned by the invoking user. under docker the
+  runners write the filestore as root (corpus archives, fuzzer-log.txt,
+  coverage tarballs all came back root-owned and undeletable as $USER).
