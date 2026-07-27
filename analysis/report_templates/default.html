@@ -140,7 +140,7 @@
                       highest relative performance may not be 100%.<br>
                       <code> trial_relative_coverage  = trial_coverage / experiment_max_coverage</code><br>
                         </p>
-                        {{ experiment.relative_code_summary_table.render() }}
+                        {{ experiment.relative_code_summary_table.to_html() }}
                       <ul>
                           <li> Fuzzers are sorted by "FuzzerMean" (average median relative coverage), highest on the left.</li>
                           <li> Green background = highest relative median coverage.</li>
@@ -162,7 +162,7 @@
                       relative performance of each fuzzer to the <em>experiment maximum</em>.  Thus the 
                       highest relative performance may not be 100%.<br>
                       <code> trial_relative_coverage  = trial_coverage / experiment_max_coverage</code><br>
-                        {{ experiment.relative_bug_summary_table.render() }}
+                        {{ experiment.relative_bug_summary_table.to_html() }}
                       <ul>
                           <li> Fuzzers are sorted by "FuzzerMean" (average median relative coverage), highest on the left.</li>
                           <li> Green background = highest relative median coverage.</li>
@@ -178,7 +178,7 @@
                         Total unique bugs found on each benchmark
                     </div>
                     <div class="collapsible-body">
-                        {{ experiment.found_bugs_summary_table.render() }}
+                        {{ experiment.found_bugs_summary_table.to_html() }}
                       <ul>
                           <li> Fuzzers are sorted by "FuzzerSum", highest on the left.</li>
                           <li> Green background = most unique bugs found.</li>
