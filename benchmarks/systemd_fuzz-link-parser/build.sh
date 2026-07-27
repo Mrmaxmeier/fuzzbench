@@ -1,4 +1,5 @@
-# Copyright 2018 Google Inc.
+#!/bin/bash -eu
+# Copyright 2022 Google Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,18 +15,18 @@
 #
 ################################################################################
 
-FROM gcr.io/oss-fuzz-base/base-builder@sha256:87ca1e9e19235e731fac8de8d1892ebe8d55caf18e7aa131346fc582a2034fdd
+FUZZ_TARGET_NAME="${FUZZ_TARGET:-fuzz-link-parser}"
 
-RUN apt-get update && \
-    apt-get install -y libcap-dev
+# systemd's own OSS-Fuzz script, copied and patched by the Dockerfile.
+"$SRC/oss-fuzz.sh"
 
-RUN git clone \
-        --depth 1 \
-        --branch v252 \
-        https://github.com/systemd/systemd && \
-    cp $SRC/systemd/tools/oss-fuzz.sh $SRC/oss-fuzz.sh && \
-    # Move shared libraries and tweak rpath for all $ARCHITECTURE.
-    sed -i '119d;126d' $SRC/oss-fuzz.sh
+# It installs all 15 fuzz targets from src/fuzz, along with their dictionaries,
+# options files and seed corpora. FuzzBench runs one of them, and everything
+# else is carried by every builder and runner image built from here.
+find "$OUT" -maxdepth 1 -type f -name 'fuzz-*' \
+    ! -name "${FUZZ_TARGET_NAME}" \
+    ! -name "${FUZZ_TARGET_NAME}.*" \
+    ! -name "${FUZZ_TARGET_NAME}_*" \
+    -delete
 
-WORKDIR systemd
-COPY build.sh $SRC/
+test -x "$OUT/${FUZZ_TARGET_NAME}"
