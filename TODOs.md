@@ -150,3 +150,32 @@ make it work across multiple blades -> SLURM?
   runner.py also writes os.path.abspath('results') -> /out/results, since
   workdir is /out. everything it writes is under /out, which is what makes
   the single --overlay sufficient.
+
+  --- full entrypoint under apptainer, done. it works. ---
+
+  ran startup-runner.sh -> runner.py (not just the fuzz target) for a 180s
+  zlib/libfuzzer trial: exit 0, 65.5m execs, cov 362, corp 414, four corpus
+  archives + fuzzer-log.txt synced to the filestore. throughput and coverage
+  match the docker run of the same target within run-to-run variance
+  (docker: cov 356/corp 391 at 170s; apptainer: cov 362/corp 414 at 170s).
+
+  files came back owned by uid 1000, confirming the ownership benefit.
+
+  it did NOT work at first, and the reason generalises. every remove-then-
+  remake of a directory that ships in the image fails under the overlay:
+  rmtree records a whiteout (a 0,0 char device in upper/), and creating the
+  directory back over it needs trusted.overlay.opaque, which needs
+  CAP_SYS_ADMIN. unprivileged -> EIO. hit initialize_directories first, then
+  _clean_seed_corpus, each one only after fixing the last. fixed by emptying
+  in place; see filesystem.recreate_directory. worth remembering as a class:
+  anything that deletes an image-provided path will do this.
+
+  loose ends before slurm:
+    - overlay work/ dir ends up root-owned, so plain rm -rf of a trial's
+      overlay fails as $USER. per-trial cleanup needs handling.
+    - non-libfuzzer fuzzers still unverified. honggfuzz + a qemu-mode one
+      are the ones to test, since they are what would need the ptrace and
+      seccomp settings docker was passing.
+    - the sif tested here was built before the fuzzer cull, with the fixed
+      sources bind-mounted over /src. rebuild it from a current runner image
+      before trusting a clean measurement.
