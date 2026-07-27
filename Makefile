@@ -23,7 +23,14 @@
 
 include docker/generated.mk
 
-SHELL := /bin/bash
+# Recipes below use bash builtins ("source"), so /bin/sh will not do. Resolve
+# bash from PATH rather than assuming /bin/bash, which does not exist on every
+# distribution (NixOS, for instance, ships only /bin/sh).
+SHELL := $(shell command -v bash 2>/dev/null)
+ifeq ($(SHELL),)
+$(error bash is required to build FuzzBench but was not found on PATH)
+endif
+
 VENV_ACTIVATE := .venv/bin/activate
 
 ${VENV_ACTIVATE}: requirements.txt
