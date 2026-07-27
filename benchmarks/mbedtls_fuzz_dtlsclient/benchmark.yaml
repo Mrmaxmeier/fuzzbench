@@ -16,5 +16,3 @@ commit: 169d9e6eb4096cb48aa25651f42b276089841087
 commit_date: 2023-01-27T09:05:00+00:00
 fuzz_target: fuzz_dtlsclient
 project: mbedtls
-unsupported_fuzzers:
-  - klee

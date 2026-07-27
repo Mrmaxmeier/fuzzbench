@@ -4,4 +4,3 @@ fuzz_target: fuzz-link-parser
 project: systemd
 unsupported_fuzzers:
   - centipede
-  - wingfuzz

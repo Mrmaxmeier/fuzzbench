@@ -16,8 +16,3 @@ commit: b0593c086dd303af31dc1e30233149978dd613c4
 commit_date: 2020-02-10 09:22:32+00:00
 fuzz_target: x509
 project: openssl
-unsupported_fuzzers:
-  - klee
-  - cfctx_dataflow_svf
-  - cfctx_dataflow_svf_llc
-  - tortoisefuzz

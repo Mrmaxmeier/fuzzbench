@@ -16,13 +16,3 @@ commit: 8190e061bc2d95da37479a638aa2c9e483e58ec6
 commit_date: 2022-07-14T21:57:37+00:00
 fuzz_target: jsoncpp_fuzzer
 project: jsoncpp
-unsupported_fuzzers:
-  - klee
-  - aflplusplus_cmplog_double
-  - symcc_aflplusplus_single
-  - eclipser_aflplusplus
-  - aflplusplus_qemu_double
-  - fuzzolic_aflplusplus_z3
-  - symqemu_aflplusplus
-  - fuzzolic_aflplusplus_fuzzy
-  - fuzzolic_aflplusplus_z3dict
