@@ -23,6 +23,19 @@ from common import experiment_path as exp_path
 DEFAULT_SNAPSHOT_SECONDS = 15 * 60  # Seconds.
 CONFIG_DIR = 'config'
 
+# Prefix for the names of the images FuzzBench builds for itself (base image,
+# builders, runners, dispatcher). These are always built locally and never
+# fetched, so the prefix is a naming convention rather than a real registry.
+# 'localhost/' keeps it that way: if an image is missing, docker fails to
+# resolve it instead of silently pulling an unrelated image of the same name
+# from Docker Hub. Override with DOCKER_REGISTRY to push to a real registry.
+DEFAULT_DOCKER_REGISTRY = 'localhost/fuzzbench'
+
+
+def get_docker_registry():
+    """Returns the prefix to use for FuzzBench's own docker images."""
+    return environment.get('DOCKER_REGISTRY', DEFAULT_DOCKER_REGISTRY)
+
 
 def get_internal_experiment_config_relative_path():
     """Returns the path of the internal config file relative to the data

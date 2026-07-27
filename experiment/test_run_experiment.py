@@ -54,7 +54,7 @@ class TestReadAndValdiateExperimentConfig(unittest.TestCase):
             'report_filestore':
                 '/tmp/report',
             'docker_registry':
-                'gcr.io/fuzzbench',
+                'localhost/fuzzbench',
             'trials':
                 10,
             'max_total_time':

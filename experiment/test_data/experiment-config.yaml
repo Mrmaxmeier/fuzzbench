@@ -17,7 +17,7 @@ trials: 4
 max_total_time: 86400
 snapshot_period: 900
 cloud_project: fuzzbench
-docker_registry: gcr.io/fuzzbench
+docker_registry: localhost/fuzzbench
 cloud_compute_zone: us-central1-a
 experiment_filestore: /tmp/experiment-data
 report_filestore: /tmp/web-reports

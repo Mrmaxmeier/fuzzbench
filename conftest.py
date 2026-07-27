@@ -80,7 +80,7 @@ def experiment(environ):  # pylint: disable=redefined-outer-name,unused-argument
     os.environ['EXPERIMENT_FILESTORE'] = '/experiment-data'
     os.environ['REPORT_FILESTORE'] = '/experiment-report'
     os.environ['LOCAL_EXPERIMENT'] = 'true'
-    os.environ['DOCKER_REGISTRY'] = 'gcr.io/fuzzbench'
+    os.environ['DOCKER_REGISTRY'] = 'localhost/fuzzbench'
 
 
 @pytest.fixture
@@ -89,4 +89,4 @@ def use_local_filestore(experiment):  # pylint: disable=redefined-outer-name,unu
     os.environ['EXPERIMENT_FILESTORE'] = '/experiment-data'
     os.environ['REPORT_FILESTORE'] = '/experiment-report'
     os.environ['LOCAL_EXPERIMENT'] = 'true'
-    os.environ['DOCKER_REGISTRY'] = 'gcr.io/fuzzbench'
+    os.environ['DOCKER_REGISTRY'] = 'localhost/fuzzbench'

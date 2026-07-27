@@ -18,10 +18,11 @@ import sys
 
 from common import yaml_utils
 from common import benchmark_utils
+from common import experiment_utils
 from common import fuzzer_utils
 from experiment.build import docker_images
 
-BASE_TAG = 'gcr.io/fuzzbench'
+BASE_TAG = experiment_utils.get_docker_registry()
 BENCHMARK_DIR = benchmark_utils.BENCHMARKS_DIR
 
 
@@ -115,13 +116,8 @@ def get_rules_for_image(name, image):
             else:
                 section += ' .' + dep
     section += '\n'
-    if 'base-' in name:
-        section += '\tdocker pull ubuntu:focal\n'
     section += '\tdocker build \\\n'
     section += '\t--tag ' + os.path.join(BASE_TAG, image['tag']) + ' \\\n'
-    section += '\t--build-arg BUILDKIT_INLINE_CACHE=1 \\\n'
-    section += ('\t--cache-from ' + os.path.join(BASE_TAG, image['tag']) +
-                ' \\\n')
 
     if 'build_arg' in image:
         for arg in image['build_arg']:

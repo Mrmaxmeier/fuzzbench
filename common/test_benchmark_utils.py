@@ -21,7 +21,7 @@ from common import conftest
 
 # pylint: disable=invalid-name,unused-argument
 
-DOCKER_REGISTRY = 'gcr.io/fuzzbench'
+DOCKER_REGISTRY = 'localhost/fuzzbench'
 
 OTHER_BENCHMARK = 'benchmark'
 
@@ -35,8 +35,8 @@ def test_get_fuzz_target(oss_fuzz_benchmark):
 @pytest.mark.parametrize(
     'benchmark,expected_url',
     [(conftest.OSS_FUZZ_BENCHMARK_NAME,
-      'gcr.io/fuzzbench/runners/fuzzer/oss-fuzz-benchmark:experiment'),
-     (OTHER_BENCHMARK, 'gcr.io/fuzzbench/runners/fuzzer/benchmark:experiment')])
+      'localhost/fuzzbench/runners/fuzzer/oss-fuzz-benchmark:experiment'),
+     (OTHER_BENCHMARK, 'localhost/fuzzbench/runners/fuzzer/benchmark:experiment')])
 def test_get_runner_image_url(benchmark, expected_url, oss_fuzz_benchmark):
     """Test that we can get the runner image url of a benchmark."""
     assert benchmark_utils.get_runner_image_url('experiment', benchmark,

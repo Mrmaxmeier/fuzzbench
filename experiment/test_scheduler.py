@@ -80,10 +80,10 @@ def pending_trials(db, experiment_config):
 @pytest.mark.parametrize(
     'benchmark,expected_image,expected_target',
     [('benchmark1',
-      'gcr.io/fuzzbench/runners/fuzzer-a/benchmark1:test-experiment',
+      'localhost/fuzzbench/runners/fuzzer-a/benchmark1:test-experiment',
       'fuzz-target'),
      ('bloaty_fuzz_target',
-      'gcr.io/fuzzbench/runners/fuzzer-a/bloaty_fuzz_target:test-experiment',
+      'localhost/fuzzbench/runners/fuzzer-a/bloaty_fuzz_target:test-experiment',
       'fuzz_target')])
 def test_create_trial_instance(benchmark, expected_image, expected_target,
                                experiment_config):
@@ -108,7 +108,7 @@ docker run \\
 -e NO_DICTIONARIES=False \\
 -e OSS_FUZZ_CORPUS=False \\
 -e CUSTOM_SEED_CORPUS_DIR=None \\
--e DOCKER_REGISTRY=gcr.io/fuzzbench \\
+-e DOCKER_REGISTRY=localhost/fuzzbench \\
 -e EXPERIMENT_FILESTORE=/tmp/experiment-data -v /tmp/experiment-data:/tmp/experiment-data \\
 -e REPORT_FILESTORE=/tmp/web-reports -v /tmp/web-reports:/tmp/web-reports \\
 -e FUZZ_TARGET={oss_fuzz_target} \\

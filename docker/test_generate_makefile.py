@@ -25,17 +25,15 @@ def test_get_rules_for_image():
         'context': 'fuzzers/afl',
         'dockerfile': 'fuzzers/afl/builder.Dockerfile',
         'depends_on': ['zlib-project-builder'],
-        'build_arg': ['parent_image=gcr.io/fuzzbench/builders/benchmark/zlib']
+        'build_arg': ['parent_image=localhost/fuzzbench/builders/benchmark/zlib']
     }
 
     rules_for_image = generate_makefile.get_rules_for_image(name, image)
     assert rules_for_image == (
         '.afl-zlib-builder-intermediate: .zlib-project-builder\n'
         '\tdocker build \\\n'
-        '\t--tag gcr.io/fuzzbench/builders/afl/zlib-intermediate \\\n'
-        '\t--build-arg BUILDKIT_INLINE_CACHE=1 \\\n'
-        '\t--cache-from gcr.io/fuzzbench/builders/afl/zlib-intermediate \\\n'
-        '\t--build-arg parent_image=gcr.io/fuzzbench/builders/benchmark/zlib \\'
+        '\t--tag localhost/fuzzbench/builders/afl/zlib-intermediate \\\n'
+        '\t--build-arg parent_image=localhost/fuzzbench/builders/benchmark/zlib \\'
         '\n'
         '\t--file fuzzers/afl/builder.Dockerfile \\\n'
         '\tfuzzers/afl\n'
@@ -59,9 +57,7 @@ def test_get_rules_for_runner_image():
     assert rules_for_image == (
         '.afl-zlib-runner: .afl-zlib-builder .afl-zlib-intermediate-runner\n'
         '\tdocker build \\\n'
-        '\t--tag gcr.io/fuzzbench/runners/afl/zlib \\\n'
-        '\t--build-arg BUILDKIT_INLINE_CACHE=1 \\\n'
-        '\t--cache-from gcr.io/fuzzbench/runners/afl/zlib \\\n'
+        '\t--tag localhost/fuzzbench/runners/afl/zlib \\\n'
         '\t--build-arg fuzzer=afl \\\n'
         '\t--build-arg benchmark=zlib \\\n'
         '\t--file docker/benchmark-runner/Dockerfile \\\n'
@@ -78,7 +74,7 @@ def test_get_rules_for_runner_image():
 \t-e FUZZER=afl \\\n\
 \t-e BENCHMARK=zlib \\\n\
 \t-e FUZZ_TARGET=$(zlib-fuzz-target) \\\
-\n') + '\t-it gcr.io/fuzzbench/runners/afl/zlib\n\n'
+\n') + '\t-it localhost/fuzzbench/runners/afl/zlib\n\n'
         'debug-afl-zlib: .afl-zlib-runner\n' + ('\
 \tdocker run \\\n\
 \t--cpus=1 \\\n\
@@ -91,7 +87,7 @@ def test_get_rules_for_runner_image():
 \t-e FUZZER=afl \\\n\
 \t-e BENCHMARK=zlib \\\n\
 \t-e FUZZ_TARGET=$(zlib-fuzz-target) \\\
-\n') + '\t--entrypoint "/bin/bash" \\\n\t-it gcr.io/fuzzbench/runners/afl/zlib'
+\n') + '\t--entrypoint "/bin/bash" \\\n\t-it localhost/fuzzbench/runners/afl/zlib'
         '\n\n'
         'test-run-afl-zlib: .afl-zlib-runner\n' + ('\
 \tdocker run \\\n\
@@ -106,7 +102,7 @@ def test_get_rules_for_runner_image():
 \t-e BENCHMARK=zlib \\\n\
 \t-e FUZZ_TARGET=$(zlib-fuzz-target) \\\
 \n') + '\t-e MAX_TOTAL_TIME=20 \\\n\t-e SNAPSHOT_PERIOD=10 \\\n'
-        '\tgcr.io/fuzzbench/runners/afl/zlib'
+        '\tlocalhost/fuzzbench/runners/afl/zlib'
         '\n\n'
         'debug-builder-afl-zlib: .afl-zlib-builder-debug\n' + ('\
 \tdocker run \\\n\
@@ -122,4 +118,4 @@ def test_get_rules_for_runner_image():
 \t-e FUZZ_TARGET=$(zlib-fuzz-target) \\\n\
 \t-e DEBUG_BUILDER=1 \\\n\
 \t--entrypoint "/bin/bash" \\\
-\n') + '\t-it gcr.io/fuzzbench/builders/afl/zlib\n\n')
+\n') + '\t-it localhost/fuzzbench/builders/afl/zlib\n\n')

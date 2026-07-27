@@ -15,14 +15,17 @@
 
 import os
 
+from common import experiment_utils
 from common import yaml_utils
 from common.utils import ROOT_DIR
 
 
 def _substitute(template, fuzzer, benchmark):
-    """Replaces {fuzzer} or {benchmark} with |fuzzer| or |benchmark| in
-    |template| string."""
-    return template.format(fuzzer=fuzzer, benchmark=benchmark)
+    """Replaces {fuzzer}, {benchmark} or {registry} with |fuzzer|, |benchmark|
+    or the configured docker registry in |template| string."""
+    return template.format(fuzzer=fuzzer,
+                           benchmark=benchmark,
+                           registry=experiment_utils.get_docker_registry())
 
 
 def _instantiate_image_obj(name_template, obj_template, fuzzer, benchmark):

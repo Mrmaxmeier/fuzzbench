@@ -13,9 +13,10 @@
 # limitations under the License.
 
 ARG parent_image
+ARG base_image=localhost/fuzzbench/base-image
 
 # Using multi-stage build to copy latest Python 3.
-FROM gcr.io/fuzzbench/base-image AS base-image
+FROM $base_image AS base-image
 
 FROM $parent_image
 
