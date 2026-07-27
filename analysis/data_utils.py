@@ -131,8 +131,8 @@ def filter_max_time(experiment_df, max_time):
 
 def is_unique_crash(crash_group):
     """Check if each crash in |crash_group| is unique with CF's crash comparer.
-    Return the |crash_group| with an extra columns representing if that crash
-    is the first occurrence."""
+    Returns a boolean Series, aligned to |crash_group|'s index, that is True
+    where the crash is the first occurrence."""
     unique_crashes = set()
     is_firsts = []
     for crash in crash_group.crash_key:
@@ -146,8 +146,7 @@ def is_unique_crash(crash_group):
                 break
         unique_crashes.add(crash_state)
         is_firsts.append(is_unique)
-    crash_group['firsts'] = is_firsts
-    return crash_group.firsts
+    return pd.Series(is_firsts, index=crash_group.index)
 
 
 def add_bugs_covered_column(experiment_df):
@@ -159,14 +158,20 @@ def add_bugs_covered_column(experiment_df):
     grouping2 = ['fuzzer', 'benchmark', 'trial_id']
     grouping3 = ['fuzzer', 'benchmark', 'trial_id', 'time']
     df = experiment_df.sort_values(grouping3)
-    firsts_data = df.groupby(grouping2, group_keys=False).apply(
-        is_unique_crash, include_groups=False) & ~df.crash_key.isna()
-    try:
-        df['firsts'] = (firsts_data)
-    except:
-        import traceback; traceback.print_exc()
-        firsts_data = firsts_data.stack().reset_index(drop=True)
-        df['firsts'] = (firsts_data)
+    # Build the result by concatenating each group's Series rather than relying
+    # on groupby().apply(). When a function returns a Series, apply() decides
+    # between concatenating the groups and unstacking them into columns; with a
+    # single group it unstacks, yielding a DataFrame whose columns are the row
+    # indices, which cannot be assigned to df['firsts']. Concatenating and
+    # reindexing keeps the result a Series aligned to df regardless of how many
+    # groups there are.
+    groups = [group for _, group in df.groupby(grouping2, sort=False)]
+    if groups:
+        firsts_data = pd.concat([is_unique_crash(group) for group in groups
+                                ]).reindex(df.index)
+    else:
+        firsts_data = pd.Series(False, index=df.index)
+    df['firsts'] = firsts_data & ~df.crash_key.isna()
 
     df['bugs_cumsum'] = df.groupby(grouping2)['firsts'].transform('cumsum')
     df['bugs_covered'] = (

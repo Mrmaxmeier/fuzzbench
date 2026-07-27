@@ -395,3 +395,75 @@ def test_experiment_rank_by_average_normalized_score():
                                 expected_ranking,
                                 check_names=False,
                                 rtol=10**-3)
+
+
+def create_single_trial_bug_data(crash_keys):
+    """Builds an experiment df with exactly one (fuzzer, benchmark, trial_id)
+    group, matching the columns queries.get_experiment_data returns."""
+    return pd.DataFrame([{
+        'experiment': 'bug-experiment',
+        'benchmark': 'mruby_mruby_fuzzer_8c8bbd',
+        'fuzzer': 'libfuzzer',
+        'trial_id': 2,
+        'time_started': 0,
+        'time_ended': None,
+        'time': index * 60,
+        'edges_covered': 100 + index,
+        'crash_key': crash_key,
+        'experiment_filestore': '/tmp/experiment-data',
+    } for index, crash_key in enumerate(crash_keys)])
+
+
+def test_add_bugs_covered_column_single_trial():
+    """Tests a one-trial experiment, which yields a single group.
+
+    groupby().apply() unstacks a lone group's Series into a DataFrame whose
+    columns are row indices, instead of concatenating it into a Series. Every
+    other fixture here has several groups, so this shape -- which any one-trial
+    run produces -- was untested and failed during a real experiment.
+    """
+    experiment_df = create_single_trial_bug_data([None] * 6)
+    result = data_utils.add_bugs_covered_column(experiment_df)
+    assert (result.bugs_covered == 0).all()
+
+
+def test_add_bugs_covered_column_counts_unique_crashes():
+    """Tests that bugs_covered cumulatively counts distinct crashes, with
+    repeats of an already-seen crash state not counted again."""
+    experiment_df = create_single_trial_bug_data([
+        None,
+        'Heap-buffer-overflow:foo',
+        'Heap-buffer-overflow:foo',
+        'Segv:bar',
+        None,
+        'Segv:bar',
+    ])
+    result = data_utils.add_bugs_covered_column(experiment_df)
+    result = result.sort_values('time')
+    assert list(result.bugs_covered) == [0, 1, 1, 2, 2, 2]
+
+
+def test_add_bugs_covered_column_unsorted_input():
+    """Tests a single-group df whose rows do not arrive in time order.
+
+    add_bugs_covered_column sorts internally, so the index is then no longer
+    0..n-1 and any positional realignment silently shifts the crash flags onto
+    the wrong rows -- producing plausible but wrong bug counts rather than an
+    error.
+    """
+    experiment_df = create_single_trial_bug_data([
+        None,
+        'Segv:bar',
+        None,
+        'Segv:bar',
+        'Heap-buffer-overflow:foo',
+        'Heap-buffer-overflow:foo',
+    ])
+    experiment_df['time'] = list(reversed(experiment_df['time']))
+
+    result = data_utils.add_bugs_covered_column(experiment_df)
+    result = result.sort_values('time')
+
+    # In time order the crash keys are foo, foo, bar, None, bar, None, so the
+    # two distinct crashes are first seen at t=0 and t=120.
+    assert list(result.bugs_covered) == [1, 1, 2, 2, 2, 2]
