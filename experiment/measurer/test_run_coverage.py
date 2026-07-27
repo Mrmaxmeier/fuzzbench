@@ -53,6 +53,46 @@ def _assert_profraw_files(coverage_dir):
     assert glob.glob(pattern)
 
 
+@mock.patch('common.new_process.execute')
+@mock.patch('common.logs.error')
+def test_do_coverage_run_skips_empty_new_units_dir(mocked_error,
+                                                   mocked_execute, tmp_path):
+    """Tests that a cycle with no new units neither runs the coverage binary
+    nor logs an error. libfuzzer's merge exits non-zero on an empty input dir,
+    so running it would report a failure for what is the ordinary case once a
+    fuzzer plateaus, and drown out the real failures."""
+    empty_units = os.path.join(str(tmp_path), 'new-units')
+    os.mkdir(empty_units)
+    coverage_dir = _make_coverage_dir(tmp_path)
+    crashes_dir = _make_crashes_dir(tmp_path)
+
+    run_coverage.do_coverage_run('/coverage-binary', empty_units,
+                                 os.path.join(coverage_dir, 'x.profraw'),
+                                 crashes_dir)
+
+    assert not mocked_execute.called
+    assert not mocked_error.called
+
+
+@mock.patch('common.new_process.execute')
+def test_do_coverage_run_runs_when_new_units_exist(mocked_execute, tmp_path):
+    """Tests that the skip above is limited to the empty case: a dir holding
+    even one unit still gets a coverage run."""
+    units = os.path.join(str(tmp_path), 'new-units')
+    os.mkdir(units)
+    with open(os.path.join(units, 'unit'), 'wb') as file_handle:
+        file_handle.write(b'a')
+    coverage_dir = _make_coverage_dir(tmp_path)
+    crashes_dir = _make_crashes_dir(tmp_path)
+    mocked_execute.return_value = mock.Mock(retcode=0, output='')
+
+    run_coverage.do_coverage_run('/coverage-binary', units,
+                                 os.path.join(coverage_dir, 'x.profraw'),
+                                 crashes_dir)
+
+    assert mocked_execute.called
+
+
 @pytest.mark.skipif(not os.getenv('FUZZBENCH_TEST_INTEGRATION'),
                     reason='Not running integration tests.')
 class TestIntegrationRunCoverage:

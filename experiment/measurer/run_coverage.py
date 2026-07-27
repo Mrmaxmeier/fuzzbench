@@ -41,7 +41,17 @@ def do_coverage_run(  # pylint: disable=too-many-locals
         coverage_binary: str, new_units_dir: str,
         profraw_file_pattern: str, crashes_dir: str):
     """Does a coverage run of |coverage_binary| on |new_units_dir|. Writes
-    the result to |profraw_file_pattern|."""
+    the result to |profraw_file_pattern|. Does nothing if |new_units_dir| is
+    empty, since there is no coverage to collect."""
+    if not os.listdir(new_units_dir):
+        # A cycle in which the fuzzer found nothing new is normal: it happens
+        # on the first cycle before any unit exists, and on every cycle once
+        # the fuzzer plateaus. libfuzzer's merge exits non-zero on an empty
+        # input dir ("MERGE-OUTER: zero succesfull attempts"), so running it
+        # anyway would log an error for the ordinary case and bury the real
+        # ones.
+        return
+
     with tempfile.TemporaryDirectory() as merge_dir:
         command = [
             coverage_binary, '-merge=1', '-dump_coverage=1',
