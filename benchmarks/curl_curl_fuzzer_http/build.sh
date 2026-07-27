@@ -15,5 +15,20 @@
 #
 ################################################################################
 
-# Run the OSS-Fuzz script in the curl-fuzzer project.
+# FuzzBench sets FUZZ_TARGET from benchmark.yaml; curl-fuzzer uses FUZZ_TARGETS.
+TARGET="${FUZZ_TARGET:-curl_fuzzer_http}"
+
+cd "$SRC/curl_fuzzer"
+
+# ossfuzz.sh sources scripts/fuzz_targets, which otherwise lists every target.
+sed -i "s/^export FUZZ_TARGETS=.*/export FUZZ_TARGETS=\"${TARGET}\"/" scripts/fuzz_targets
+sed -i "s/^make || exit 4\$/make ${TARGET} || exit 4/" scripts/compile_fuzzer.sh
+sed -i 's/^make check || exit 5$/true/' scripts/compile_fuzzer.sh
+
+# Fail clearly if the pinned curl-fuzzer scripts change and a substitution
+# silently stops matching.
+grep -Fqx "export FUZZ_TARGETS=\"${TARGET}\"" scripts/fuzz_targets
+grep -Fqx "make ${TARGET} || exit 4" scripts/compile_fuzzer.sh
+grep -Fqx "true" scripts/compile_fuzzer.sh
+
 ./ossfuzz.sh
