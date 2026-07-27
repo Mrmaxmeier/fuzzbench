@@ -13,10 +13,15 @@
 # limitations under the License.
 """Tests for coverage_utils.py"""
 import os
+from unittest import mock
+
+import pytest
 
 from experiment.measurer import coverage_utils
 
 TEST_DATA_PATH = os.path.join(os.path.dirname(__file__), 'test_data')
+
+# pylint: disable=unused-argument
 
 
 def get_test_data_path(*subpaths):
@@ -33,3 +38,27 @@ def test_extract_covered_branches_from_summary_json(fs):
     extract_covered_branches_from_summary_json(
         summary_json_file)
     assert len(covered_branches) == 9
+
+
+@mock.patch('common.benchmark_utils.get_fuzz_target',
+            return_value='fuzz-target')
+@mock.patch('common.fuzzer_utils.get_fuzz_target_binary', return_value=None)
+def test_get_coverage_binary_missing(_mocked_binary, _mocked_target,
+                                     experiment):
+    """Tests that a missing coverage binary raises an error naming the
+    benchmark. It used to return None, which every caller passed into a
+    subprocess argv, so a failed coverage build surfaced as an opaque
+    TypeError from inside subprocess instead."""
+    with pytest.raises(coverage_utils.CoverageBinaryNotFound,
+                       match='benchmark-a'):
+        coverage_utils.get_coverage_binary('benchmark-a')
+
+
+@mock.patch('common.benchmark_utils.get_fuzz_target',
+            return_value='fuzz-target')
+@mock.patch('common.fuzzer_utils.get_fuzz_target_binary',
+            return_value='/work/coverage-binaries/benchmark-a/fuzz-target')
+def test_get_coverage_binary_found(_mocked_binary, _mocked_target, experiment):
+    """Tests that an existing coverage binary is returned unchanged."""
+    assert (coverage_utils.get_coverage_binary('benchmark-a') ==
+            '/work/coverage-binaries/benchmark-a/fuzz-target')

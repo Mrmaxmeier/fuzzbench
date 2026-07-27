@@ -33,6 +33,10 @@ logger = logs.Logger()  # pylint: disable=invalid-name
 COV_DIFF_QUEUE_GET_TIMEOUT = 1
 
 
+class CoverageBinaryNotFound(Exception):
+    """The coverage binary for a benchmark is missing."""
+
+
 def get_coverage_info_dir():
     """Returns the directory to store coverage information including
     coverage report and json summary file."""
@@ -81,7 +85,9 @@ def generate_coverage_report(experiment, benchmark, fuzzer, region_coverage):
 
         logger.info('Finished generating coverage report.')
     except Exception:  # pylint: disable=broad-except
-        logger.error('Error occurred when generating coverage report.')
+        logger.error(
+            'Error occurred when generating coverage report for benchmark: '
+            '%s fuzzer: %s.', benchmark, fuzzer)
 
 
 class CoverageReporter:  # pylint: disable=too-many-instance-attributes
@@ -201,12 +207,24 @@ def get_profdata_file_name(trial_id):
 
 
 def get_coverage_binary(benchmark: str) -> str:
-    """Gets the coverage binary for benchmark."""
+    """Gets the coverage binary for benchmark.
+
+    Raises CoverageBinaryNotFound if it is missing. Every caller passes the
+    result straight into a subprocess argv, where a None would surface as
+    "TypeError: expected str, bytes or os.PathLike object, not NoneType" from
+    inside subprocess, naming neither the benchmark nor the real cause (which
+    is usually a failed coverage build).
+    """
     coverage_binaries_dir = build_utils.get_coverage_binaries_dir()
     fuzz_target = benchmark_utils.get_fuzz_target(benchmark)
-    return fuzzer_utils.get_fuzz_target_binary(coverage_binaries_dir /
-                                               benchmark,
-                                               fuzz_target_name=fuzz_target)
+    benchmark_dir = coverage_binaries_dir / benchmark
+    coverage_binary = fuzzer_utils.get_fuzz_target_binary(
+        benchmark_dir, fuzz_target_name=fuzz_target)
+    if coverage_binary is None:
+        raise CoverageBinaryNotFound(
+            f'Coverage binary for benchmark "{benchmark}" not found under '
+            f'{benchmark_dir}. Its coverage build most likely failed.')
+    return coverage_binary
 
 
 def get_trial_ids(experiment: str, fuzzer: str, benchmark: str):
