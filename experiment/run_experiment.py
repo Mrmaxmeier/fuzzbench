@@ -61,7 +61,6 @@ Requirement = namedtuple('Requirement',
 def _set_default_config_values(config: Dict[str, Union[int, str, bool]]):
     """Set the default configuration values if they are not specified."""
     config['local_experiment'] = True
-    config['worker_pool_name'] = config.get('worker_pool_name', '')
     config['snapshot_period'] = config.get(
         'snapshot_period', experiment_utils.DEFAULT_SNAPSHOT_SECONDS)
     config['private'] = config.get('private', False)
@@ -274,13 +273,6 @@ def get_git_hash(allow_uncommitted_changes):
         return ''
 
 
-def _filter_incompatible_benchmarks(config: dict,
-                                    benchmarks: List[str]) -> List[str]:
-    """Removes benchmarks that are incompatible with build/run environment."""
-    del config  # Local-only; no cloud benchmark filtering.
-    return benchmarks
-
-
 def start_experiment(  # pylint: disable=too-many-arguments
         experiment_name: str,
         config_filename: str,
@@ -305,7 +297,7 @@ def start_experiment(  # pylint: disable=too-many-arguments
 
     config = read_and_validate_experiment_config(config_filename)
     config['fuzzers'] = fuzzers
-    config['benchmarks'] = _filter_incompatible_benchmarks(config, benchmarks)
+    config['benchmarks'] = benchmarks
     config['experiment'] = experiment_name
     config['git_hash'] = get_git_hash(allow_uncommitted_changes)
     config['no_seeds'] = no_seeds
@@ -344,9 +336,9 @@ def start_experiment_from_full_config(config):
 
 def start_dispatcher(config: Dict, config_dir: str):
     """Start the dispatcher instance and run the dispatcher code on it."""
-    dispatcher = get_dispatcher(config)
+    dispatcher = Dispatcher(config)
     # Is dispatcher code being run manually (useful for debugging)?
-    copy_resources_to_bucket(config_dir, config)
+    copy_resources_to_filestore(config_dir, config)
     if not os.getenv('MANUAL_EXPERIMENT'):
         dispatcher.start()
 
@@ -361,7 +353,7 @@ def add_oss_fuzz_corpus(benchmark, oss_fuzz_corpora_dir):  # pylint: disable=unu
         'gsutil, pending HTTPS download support.')
 
 
-def copy_resources_to_bucket(config_dir: str, config: Dict):
+def copy_resources_to_filestore(config_dir: str, config: Dict):
     """Copy resources the dispatcher will need for the experiment to the
     experiment_filestore."""
 
@@ -378,8 +370,8 @@ def copy_resources_to_bucket(config_dir: str, config: Dict):
 
     base_destination = os.path.join(experiment_filestore_path, 'input')
 
-    # Send the local source repository to the cloud for use by dispatcher.
-    # Local changes to any file will propagate.
+    # Send the local source repository to the filestore for use by the
+    # dispatcher. Local changes to any file will propagate.
     source_archive = 'src.tar.gz'
     with tarfile.open(source_archive, 'w:gz') as tar:
         tar.add(utils.ROOT_DIR, arcname='', recursive=True, filter=filter_file)
@@ -409,24 +401,14 @@ def copy_resources_to_bucket(config_dir: str, config: Dict):
                 parallel=True)
 
 
-class BaseDispatcher:
-    """Class representing the dispatcher."""
+class Dispatcher:
+    """Class representing the dispatcher, which runs the experiment in a
+    container on this host."""
 
     def __init__(self, config: Dict):
         self.config = config
         self.instance_name = experiment_utils.get_dispatcher_instance_name(
             config['experiment'])
-
-    def start(self):
-        """Start the experiment on the dispatcher."""
-        raise NotImplementedError
-
-
-class LocalDispatcher(BaseDispatcher):
-    """Class representing the local dispatcher."""
-
-    def __init__(self, config: Dict):
-        super().__init__(config)
         self.process = None
 
     def start(self):
@@ -459,8 +441,6 @@ class LocalDispatcher(BaseDispatcher):
         docker_image_url = f'{docker_registry}/dispatcher-image'
         set_concurrent_builds_arg = (
             f'CONCURRENT_BUILDS={self.config["concurrent_builds"]}')
-        set_worker_pool_name_arg = (
-            f'WORKER_POOL_NAME={self.config.get("worker_pool_name", "")}')
         environment_args = [
             '-e',
             'LOCAL_EXPERIMENT=True',
@@ -480,8 +460,6 @@ class LocalDispatcher(BaseDispatcher):
             set_docker_registry_arg,
             '-e',
             set_concurrent_builds_arg,
-            '-e',
-            set_worker_pool_name_arg,
         ]
         command = [
             'docker',
@@ -512,11 +490,6 @@ class LocalDispatcher(BaseDispatcher):
         ]
         logs.info('Starting dispatcher with container name: %s', container_name)
         return new_process.execute(command, write_to_stdout=True)
-
-
-def get_dispatcher(config: Dict) -> BaseDispatcher:
-    """Return a local dispatcher object."""
-    return LocalDispatcher(config)
 
 
 def main():

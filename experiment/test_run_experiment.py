@@ -145,7 +145,6 @@ class TestReadAndValdiateExperimentConfig(unittest.TestCase):
             validated_config = run_experiment.read_and_validate_experiment_config(
                 'config_file')
         expected_config['local_experiment'] = True
-        expected_config['worker_pool_name'] = ''
         expected_config['snapshot_period'] = (
             experiment_utils.DEFAULT_SNAPSHOT_SECONDS)
         expected_config['private'] = False
@@ -184,8 +183,8 @@ def test_validate_experiment_name_invalid(experiment_name):
 
 # This test takes up to a minute to complete.
 @pytest.mark.slow
-def test_copy_resources_to_bucket(tmp_path):
-    """Tests that copy_resources_to_bucket copies the correct resources."""
+def test_copy_resources_to_filestore(tmp_path):
+    """Tests that copy_resources_to_filestore copies the correct resources."""
     # Do this so that Ctrl-C doesn't pollute the repo.
     cwd = os.getcwd()
     os.chdir(tmp_path)
@@ -202,7 +201,7 @@ def test_copy_resources_to_bucket(tmp_path):
         with mock.patch('common.filestore_utils.cp') as mocked_filestore_cp:
             with mock.patch(
                     'common.filestore_utils.rsync') as mocked_filestore_rsync:
-                run_experiment.copy_resources_to_bucket(config_dir, config)
+                run_experiment.copy_resources_to_filestore(config_dir, config)
                 mocked_filestore_cp.assert_called_once_with(
                     'src.tar.gz',
                     '/tmp/filestore-bucket/experiment/input/',
