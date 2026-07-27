@@ -15,6 +15,8 @@
 #
 ################################################################################
 
+FUZZ_TARGET_NAME="${FUZZ_TARGET:-fuzz_both}"
+
 cd libpcap
 # build project
 mkdir build
@@ -22,19 +24,12 @@ cd build
 cmake -DDISABLE_DBUS=1 ..
 make
 
-# build fuzz targets
-$CC $CFLAGS -I.. -c ../testprogs/fuzz/fuzz_both.c -o fuzz_both.o
-$CXX $CXXFLAGS fuzz_both.o -o $OUT/fuzz_both libpcap.a $LIB_FUZZING_ENGINE
+# build fuzz target
+$CC $CFLAGS -I.. -c "../testprogs/fuzz/${FUZZ_TARGET_NAME}.c" \
+    -o "${FUZZ_TARGET_NAME}.o"
+$CXX $CXXFLAGS "${FUZZ_TARGET_NAME}.o" -o "$OUT/${FUZZ_TARGET_NAME}" \
+    libpcap.a $LIB_FUZZING_ENGINE
 
 # export other associated stuff
 cd ..
-cp testprogs/fuzz/fuzz_*.options $OUT/
-# builds corpus
-cd $SRC/tcpdump/
-zip -r fuzz_pcap_seed_corpus.zip tests/
-cp fuzz_pcap_seed_corpus.zip $OUT/
-cd $SRC/libpcap/testprogs/BPF
-mkdir corpus
-ls *.txt | while read i; do tail -1 $i > corpus/$i; done
-zip -r fuzz_filter_seed_corpus.zip corpus/
-cp fuzz_filter_seed_corpus.zip $OUT/
+cp "testprogs/fuzz/${FUZZ_TARGET_NAME}.options" "$OUT/"

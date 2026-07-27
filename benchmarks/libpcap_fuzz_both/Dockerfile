@@ -20,10 +20,6 @@ RUN apt-get update && \
 
 RUN git clone https://github.com/the-tcpdump-group/libpcap.git libpcap
 
-# For corpus as wireshark.
-RUN git clone https://github.com/the-tcpdump-group/tcpdump.git tcpdump && \
-    git -C tcpdump checkout 032e4923e5202ea4d5a6d1cead83ed1927135874
-
 WORKDIR $SRC
 COPY build.sh $SRC/
 
