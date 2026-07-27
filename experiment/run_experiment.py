@@ -464,7 +464,13 @@ class Dispatcher:
         command = [
             'docker',
             'run',
-            '-ti',
+            # Only ask for a TTY when we have one. Without this, launching an
+            # experiment from anything non-interactive (a batch job, CI, a
+            # background shell) fails with "cannot attach stdin to a
+            # TTY-enabled container". The TTY only matters for the
+            # "|| /bin/bash" fallback below, which is useless without one
+            # anyway.
+            *(['-ti'] if sys.stdin.isatty() else []),
             '--rm',
             '-v',
             '/var/run/docker.sock:/var/run/docker.sock',
