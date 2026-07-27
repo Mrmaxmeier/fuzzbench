@@ -108,3 +108,45 @@ make it work across multiple blades -> SLURM?
   side benefit: files land owned by the invoking user. under docker the
   runners write the filestore as root (corpus archives, fuzzer-log.txt,
   coverage tarballs all came back root-owned and undeletable as $USER).
+
+  --- the rest of what docker was providing ---
+
+  read experiment/resources/runner-startup-script-template.sh, not just the
+  runner image: the template is where the privileges actually live, and it is
+  the thing a slurm job step has to replace. it asks for
+
+    --privileged
+    --cap-add SYS_NICE --cap-add SYS_PTRACE
+    --security-opt seccomp=unconfined
+    --shm-size=2g
+    --cpus / --cpuset-cpus
+
+  none of these translate to apptainer as-is. mapping:
+    - cpus/cpuset      -> slurm's job (--cpus-per-task, cgroup affinity).
+                          drop from the launcher, let the scheduler own it.
+    - shm-size         -> /dev/shm is the host's under apptainer. libfuzzer
+                          was fine, but anything that sizes shm off the
+                          container limit needs a check.
+    - seccomp/privileged/ptrace -> only matter for fuzzers that ptrace. the
+                          libfuzzer spike needed none of them. verify per
+                          fuzzer before trusting: honggfuzz, and anything
+                          qemu-mode, are the ones to test.
+
+  also in that template, *outside* the container, run as root on the host:
+    echo 0 > /proc/sys/kernel/yama/ptrace_scope
+    echo core > /proc/sys/kernel/core_pattern
+  these are node-level config, not job-level. on a cluster they belong in a
+  slurm prolog or the node image -- a job step cannot set them. if the site
+  will not change them, that constrains which fuzzers can run at all, so
+  check the node's current values before committing to a fuzzer set.
+
+  env the runner needs (template + runner image ENV), for the job script:
+    INSTANCE_NAME FUZZER BENCHMARK EXPERIMENT TRIAL_ID TRIAL_GROUP_NUM
+    MAX_TOTAL_TIME SNAPSHOT_PERIOD NO_SEEDS NO_DICTIONARIES OSS_FUZZ_CORPUS
+    CUSTOM_SEED_CORPUS_DIR DOCKER_REGISTRY EXPERIMENT_FILESTORE
+    REPORT_FILESTORE FUZZ_TARGET PRIVATE LOCAL_EXPERIMENT MICRO_EXPERIMENT
+  and baked into the image: OUT=/out WORKDIR=/out ROOT_DIR=/src
+    SEED_CORPUS_DIR=/out/seeds OUTPUT_CORPUS_DIR=/out/corpus PYTHONPATH=/src
+  runner.py also writes os.path.abspath('results') -> /out/results, since
+  workdir is /out. everything it writes is under /out, which is what makes
+  the single --overlay sufficient.
