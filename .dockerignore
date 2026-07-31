@@ -3,7 +3,6 @@
 *.pyo
 .git
 .pytest_cache
-.pytype
 .venv
 **__pycache__*
 docs

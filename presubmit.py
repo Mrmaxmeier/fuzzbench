@@ -196,11 +196,6 @@ def lint(_: List[Path]) -> bool:
     return returncode == 0
 
 
-def pytype(paths: List[Path]) -> bool:
-    """Deprecated name kept for CLI compatibility; runs mypy."""
-    return typecheck(paths)
-
-
 def typecheck(paths: List[Path]) -> bool:
     """Run mypy on Python packages. |paths| is accepted for CLI compatibility
     with other checks but mypy is run on the whole typed package set."""

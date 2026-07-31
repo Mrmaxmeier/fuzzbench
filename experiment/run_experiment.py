@@ -42,7 +42,6 @@ FUZZER_NAME_REGEX = re.compile(r'^[a-z][a-z0-9_]+$')
 EXPERIMENT_CONFIG_REGEX = re.compile(r'^[a-z0-9-]{0,30}$')
 FILTER_SOURCE_REGEX = re.compile(r'('
                                  r'^\.git/|'
-                                 r'^\.pytype/|'
                                  r'^\.venv/|'
                                  r'^.*\.pyc$|'
                                  r'^__pycache__/|'
