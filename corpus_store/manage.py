@@ -85,39 +85,50 @@ def _redistill(store, resolved, args, operation, extra_sources):
     would drift away from minimal one round at a time.
     """
     benchmark = args.benchmark
-    before = store.stats(benchmark)
 
-    sources = []
-    if before.units:
-        sources.append(store.corpus_dir(benchmark))
-
+    # Importing reads paths the store does not own yet, so it happens before
+    # the lock is taken. No reason to make a concurrent round wait on copying
+    # someone else's files.
     staged = None
     if extra_sources:
         staged = store.scratch_dir('import', benchmark)
         imported = store_lib.import_units(extra_sources, staged)
         logger.info('Imported %d distinct units from %s.', imported,
                     ', '.join(extra_sources))
-        if imported:
+        if not imported:
+            staged = None
+
+    # From here to the commit is one read-modify-write over the corpus, and
+    # commit replaces it wholesale rather than merging, so it all has to be
+    # under the benchmark's lock. See CorpusStore.locked.
+    with store.locked(benchmark):
+        before = store.stats(benchmark)
+
+        sources = [store.corpus_dir(benchmark)] if before.units else []
+        if staged:
             sources.append(staged)
 
-    if not sources:
-        report(f'{benchmark}: nothing to minimize.')
-        return None
+        if not sources:
+            # Nothing was imported and there is no corpus, so there is also no
+            # scratch directory to clean up.
+            report(f'{benchmark}: nothing to minimize.')
+            return None
 
-    new_dir = store.new_corpus_dir(benchmark)
-    result = engine.distill(resolved.digest, benchmark, sources, new_dir)
-    store.commit(benchmark, new_dir)
+        new_dir = store.new_corpus_dir(benchmark)
+        result = engine.distill(resolved.digest, benchmark, sources, new_dir)
+        store.commit(benchmark, new_dir)
+
+        after = store.stats(benchmark)
+        store.record(benchmark,
+                     operation,
+                     minimizer_image=resolved.digest,
+                     minimizer_fuzzer=args.fuzzer,
+                     features=result.features,
+                     edges=result.edges,
+                     units_before=before.units)
+
     if staged:
         shutil.rmtree(staged, ignore_errors=True)
-
-    after = store.stats(benchmark)
-    store.record(benchmark,
-                 operation,
-                 minimizer_image=resolved.digest,
-                 minimizer_fuzzer=args.fuzzer,
-                 features=result.features,
-                 edges=result.edges,
-                 units_before=before.units)
 
     delta = after.units - before.units
     report(f'{benchmark}: {before.units} -> {after.units} units '
@@ -177,7 +188,14 @@ def do_campaign(args) -> int:
     store, resolved = _prepare(args)
 
     for round_number in range(1, args.rounds + 1):
-        staged_input = store.stage(args.benchmark)
+        # Briefly, and not around the campaign itself: another round's commit
+        # leaves the corpus directory absent for the moment between its two
+        # renames, and staging through that window would seed this campaign
+        # from nothing. Holding it for the whole round would serialize the
+        # fuzzing, which is the one part worth doing in parallel.
+        with store.locked(args.benchmark):
+            staged_input = store.stage(args.benchmark)
+
         if not os.listdir(staged_input):
             extracted = engine.extract_benchmark_seeds(resolved.digest,
                                                        staged_input)

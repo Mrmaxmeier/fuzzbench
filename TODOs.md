@@ -363,13 +363,40 @@ saturated corpora per benchmark -> corpus_store/
   and a store of root-owned units is one you cannot curate. same reason the
   apptainer work cared about ownership.
 
+  the read-modify-write is locked, per benchmark, flock on
+  {store}/.locks/{benchmark}.lock. the race is not in commit -- that is two
+  renames -- it is that a round reads the corpus, spends however long a
+  distillation takes, and then commit *replaces* rather than merges. two
+  rounds whose distills overlap both read the same starting corpus and the
+  second commit drops the first's finds.
+
+  noticed it because a verification round and a still-running 4-round
+  campaign overlapped. worth being accurate: that pair happened to serialize
+  (units_before chained 435 -> 459 -> 470), so nothing was actually lost. the
+  window is real, it just needs the *distills* to overlap, and zlib's distill
+  is seconds.
+
+  the lock covers only the rebuild, not the campaign. campaigns still fuzz in
+  parallel and queue briefly to fold in, which is what you want: the one that
+  folds second reads a corpus already containing the first's finds. holding
+  it across the whole round would serialize the only part worth parallelising.
+  verified with two concurrent 45s campaigns: both staged from 470, B folded
+  470 -> 482, A then folded 482 -> 478 -- A's before was B's after, so both
+  contributions survived, and the -4 is the re-distill dropping units that
+  became redundant once B's smaller ones were there.
+
+  flock rather than the link() first-writer-wins the image lock uses, because
+  they are different problems. that one binds an immutable key to an immutable
+  value, so the loser can adopt the winner's answer. here the resource is
+  mutable and the section is long: what is wanted is exclusion for a duration.
+  flock also releases on process exit, so a killed campaign cannot wedge a
+  benchmark, which a sentinel file would need stale detection to match. not
+  reentrant -- each entry opens its own fd -- so call sites are arranged not
+  to nest.
+
   loose ends:
-    - no lock around commit. two invocations on the same benchmark will
-      interleave; hit this by accident running a verification round while a
-      4-round campaign was still going. each commit is a rename so the store
-      stays consistent, but the later writer silently loses the earlier
-      one's finds. needs a per-benchmark lockfile before this is run from
-      cron or across machines.
+    - flock over NFS is only as good as the server's lock manager. fine on one
+      host; re-check before the store lives on the cluster's shared fs.
     - only libfuzzer exercised. the campaign path goes through the fuzzer's
       own fuzz() entry point, so any engine in fuzzers/ should work, but
       untested. afl-family output layouts are the thing to check.

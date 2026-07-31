@@ -27,8 +27,10 @@ instrumented build of the benchmark and lives in engine.py; this module only
 knows how to hold the answer.
 """
 
+import contextlib
 import dataclasses
 import datetime
+import fcntl
 import hashlib
 import json
 import os
@@ -53,6 +55,7 @@ DEFAULT_STORE_DIR = os.path.join(
 # fuzzer as if it were an input.
 META_DIRNAME = '.meta'
 WORK_DIRNAME = '.work'
+LOCKS_DIRNAME = '.locks'
 
 # How many rounds of provenance to keep per benchmark.
 MAX_HISTORY_ENTRIES = 50
@@ -146,6 +149,43 @@ class CorpusStore:
         path = os.path.join(self.root, WORK_DIRNAME)
         os.makedirs(path, exist_ok=True)
         return path
+
+    def lock_path(self, benchmark: str) -> str:
+        """Returns the path of |benchmark|'s lock file."""
+        return os.path.join(self.root, LOCKS_DIRNAME, f'{benchmark}.lock')
+
+    @contextlib.contextmanager
+    def locked(self, benchmark: str):
+        """Holds |benchmark|'s lock for the duration of the block.
+
+        Rebuilding a corpus is a read-modify-write that runs for as long as a
+        distillation takes, and commit() replaces the corpus wholesale rather
+        than merging into it. Two rounds whose distillations overlap therefore
+        both read the same starting corpus and the second commit discards the
+        first's finds. Serializing just the rebuild is enough: campaigns still
+        fuzz in parallel, and the one that folds in second reads a corpus that
+        already contains what the first found.
+
+        flock rather than the first-writer-wins link() the image lock uses,
+        because these are different problems. That lock binds an immutable key
+        to an immutable value, so a loser can simply adopt the winner's answer.
+        Here the resource is mutable and the critical section is long: what is
+        needed is exclusion for a duration. flock also releases when the holder
+        exits, so a killed campaign cannot wedge a benchmark forever, which a
+        sentinel file would need stale detection to match.
+
+        Not reentrant. Each entry opens its own file description, so nesting
+        two of these on one benchmark in a single process deadlocks against
+        itself. Call sites are arranged not to nest.
+        """
+        path = self.lock_path(benchmark)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle, fcntl.LOCK_UN)
 
     def scratch_dir(self, purpose: str, benchmark: str) -> str:
         """Returns a fresh scratch directory for |purpose| on |benchmark|.

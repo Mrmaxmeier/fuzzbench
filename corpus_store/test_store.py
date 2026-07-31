@@ -13,8 +13,11 @@
 # limitations under the License.
 """Tests for corpus_store/store.py."""
 
+import fcntl
 import hashlib
 import os
+import threading
+import time
 
 import pytest
 
@@ -199,3 +202,109 @@ def test_benchmarks_ignores_bookkeeping_directories(store):
     store.work_dir()
     store.record(BENCHMARK, 'add')
     assert store.benchmarks() == [BENCHMARK]
+
+
+def _try_lock(path) -> bool:
+    """Returns True if |path| can be flocked right now.
+
+    A fresh open() gets its own file description, so this conflicts with a
+    lock held elsewhere in this process exactly as it would with one held by
+    another process.
+    """
+    with open(path, 'w', encoding='utf-8') as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        fcntl.flock(handle, fcntl.LOCK_UN)
+        return True
+
+
+def test_lock_excludes_a_second_holder(store):
+    """Tests that the lock is actually exclusive."""
+    store.create(BENCHMARK)
+    with store.locked(BENCHMARK):
+        assert not _try_lock(store.lock_path(BENCHMARK))
+
+
+def test_lock_is_released_on_exit(store):
+    """Tests that the block releases what it took."""
+    store.create(BENCHMARK)
+    with store.locked(BENCHMARK):
+        pass
+    assert _try_lock(store.lock_path(BENCHMARK))
+
+
+def test_lock_is_released_when_the_body_raises(store):
+    """Tests that a failed round does not wedge the benchmark."""
+    store.create(BENCHMARK)
+    with pytest.raises(RuntimeError):
+        with store.locked(BENCHMARK):
+            raise RuntimeError('distill blew up')
+    assert _try_lock(store.lock_path(BENCHMARK))
+
+
+def test_lock_is_per_benchmark(store):
+    """Tests that rounds on unrelated benchmarks do not queue behind one
+    another. Serializing the whole store would make the lock cost more than
+    the race it prevents."""
+    with store.locked(BENCHMARK):
+        assert _try_lock(store.lock_path('other_benchmark'))
+
+
+def test_lock_files_are_not_seeds(tmp_path, store):
+    """Tests that locking leaves nothing inside a corpus directory.
+
+    The store's layout is what --custom-seed-corpus-dir consumes, so a lock
+    file inside a benchmark's directory would be handed to a fuzzer as input.
+    """
+    store_lib.import_units([write_units(tmp_path / 'src', b'a')],
+                           store.create(BENCHMARK))
+    with store.locked(BENCHMARK):
+        pass
+
+    assert os.listdir(
+        store.corpus_dir(BENCHMARK)) == [store_lib.unit_name(b'a')]
+    assert store.benchmarks() == [BENCHMARK]
+
+
+def test_lock_serializes_a_read_modify_write(tmp_path, store):
+    """Tests that the lock prevents the lost update it exists for.
+
+    Each worker does what a round does: read the corpus, take as long as a
+    distillation takes, then commit the union of what it read and what it
+    found. Without the lock both read the same starting corpus and the second
+    commit discards the first's finds; with it, the second reads the first's
+    result and both survive.
+    """
+    store_lib.import_units([write_units(tmp_path / 'start', b'start')],
+                           store.create(BENCHMARK))
+    ready = threading.Barrier(2)
+
+    def round_of(payload):
+        ready.wait()
+        with store.locked(BENCHMARK):
+            existing = [
+                entry.path for entry in os.scandir(store.corpus_dir(BENCHMARK))
+            ]
+            new_dir = store.new_corpus_dir(BENCHMARK)
+            store_lib.import_units(existing, new_dir)
+            # Stand in for the distillation, which is what makes the window
+            # wide enough to matter.
+            time.sleep(0.2)
+            found = write_units(tmp_path / f'found-{payload}', payload)
+            store_lib.import_units([found], new_dir)
+            store.commit(BENCHMARK, new_dir)
+
+    threads = [
+        threading.Thread(target=round_of, args=(payload,))
+        for payload in (b'first', b'second')
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert sorted(os.listdir(store.corpus_dir(BENCHMARK))) == sorted(
+        store_lib.unit_name(payload)
+        for payload in (b'start', b'first', b'second'))
