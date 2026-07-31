@@ -148,6 +148,14 @@ make job inputs fully content-addressed? -> all images: base, builders, fuzzers,
   nothing reports the trial as unmeasured at the end. worth a real failure
   path.
 
+  --- fixed: measurement retries are now bounded. ---
+
+  NUM_RETRIES (3) is wired into the measure manager's RetryRequest path. after
+  exhaustion it records a zero-coverage snapshot so later cycles can advance,
+  and drains the response queue once more after trials end. also delete
+  cov_summary.json at the start of each cycle so a failed run cannot reuse a
+  prior cycle's summary. characterization tests cover both.
+
 make it work across multiple blades -> SLURM?
 
   cluster has a shared fs, so: no per-node image import at all. build once,

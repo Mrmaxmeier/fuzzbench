@@ -51,7 +51,6 @@ import experiment.measurer.datatypes as measurer_datatypes
 logger = logs.Logger()
 
 NUM_RETRIES = 3
-RETRY_DELAY = 3
 MEASUREMENT_LOOP_WAIT = 10
 
 
@@ -259,6 +258,12 @@ class SnapshotMeasurer(coverage_utils.TrialCoverage):  # pylint: disable=too-man
         for directory in [self.corpus_dir, self.coverage_dir, self.crashes_dir]:
             filesystem.recreate_directory(directory)
         filesystem.create_directory(self.report_dir)
+        # A prior cycle's summary must not survive into this one. report_dir is
+        # not recreated because it also holds the cumulative .profdata file,
+        # but an unchanged cov_summary.json would make a failed coverage run
+        # look successful.
+        if os.path.exists(self.cov_summary_file):
+            os.remove(self.cov_summary_file)
 
     def run_cov_new_units(self):
         """Run the coverage binary on new units."""
@@ -541,21 +546,50 @@ def initialize_logs():
 
 
 def consume_snapshots_from_response_queue(
-        response_queue, queued_snapshots) -> List[models.Snapshot]:
-    """Consume response_queue, allows retry objects to retried, and
-    return all measured snapshots in a list."""
+        response_queue,
+        queued_snapshots,
+        retry_counts=None) -> List[models.Snapshot]:
+    """Consume response_queue, allow retry objects to be retried up to
+    NUM_RETRIES times, and return all measured snapshots in a list.
+
+    After NUM_RETRIES failures for the same (trial, cycle), records a
+    zero-coverage snapshot so later cycles for that trial can proceed instead
+    of blocking forever.
+    """
+    if retry_counts is None:
+        retry_counts = {}
     measured_snapshots = []
     while True:
         try:
             response_object = response_queue.get_nowait()
             if isinstance(response_object, measurer_datatypes.RetryRequest):
-                # Need to retry measurement task, will remove identifier from
-                # the set so task can be retried in next loop iteration.
                 snapshot_identifier = (response_object.trial_id,
                                        response_object.cycle)
-                queued_snapshots.remove(snapshot_identifier)
-                logger.info('Reescheduling task for trial %s and cycle %s',
-                            response_object.trial_id, response_object.cycle)
+                attempts = retry_counts.get(snapshot_identifier, 0) + 1
+                retry_counts[snapshot_identifier] = attempts
+                if attempts >= NUM_RETRIES:
+                    logger.error(
+                        'Giving up measuring trial %s cycle %s after %d '
+                        'failures; recording a zero-coverage snapshot so the '
+                        'trial can advance.', response_object.trial_id,
+                        response_object.cycle, attempts)
+                    measured_snapshots.append(
+                        models.Snapshot(
+                            time=experiment_utils.get_cycle_time(
+                                response_object.cycle),
+                            trial_id=response_object.trial_id,
+                            edges_covered=0,
+                            fuzzer_stats=None,
+                            crashes=[]))
+                    # Leave the identifier in queued_snapshots so it is not
+                    # re-queued while the sentinel is being written.
+                else:
+                    # Allow the task to be re-queued on the next loop.
+                    queued_snapshots.remove(snapshot_identifier)
+                    logger.info(
+                        'Rescheduling task for trial %s and cycle %s '
+                        '(attempt %d/%d)', response_object.trial_id,
+                        response_object.cycle, attempts, NUM_RETRIES)
             elif isinstance(response_object, models.Snapshot):
                 measured_snapshots.append(response_object)
             else:
@@ -566,12 +600,18 @@ def consume_snapshots_from_response_queue(
     return measured_snapshots
 
 
-def measure_manager_inner_loop(experiment: str, max_cycle: int, request_queue,
-                               response_queue, queued_snapshots):
+def measure_manager_inner_loop(experiment: str,
+                               max_cycle: int,
+                               request_queue,
+                               response_queue,
+                               queued_snapshots,
+                               retry_counts=None):
     """Reads from database to determine which snapshots needs measuring. Write
     measurements tasks to request queue, get results from response queue, and
     write measured snapshots to database. Returns False if there's no more
     snapshots left to be measured"""
+    if retry_counts is None:
+        retry_counts = {}
     initialize_logs()
     # Read database to determine which snapshots needs measuring.
     unmeasured_snapshots = get_unmeasured_snapshots(experiment, max_cycle)
@@ -595,7 +635,7 @@ def measure_manager_inner_loop(experiment: str, max_cycle: int, request_queue,
 
     # Read results from response queue.
     measured_snapshots = consume_snapshots_from_response_queue(
-        response_queue, queued_snapshots)
+        response_queue, queued_snapshots, retry_counts)
     logger.info('Retrieved %d measured snapshots from response queue',
                 len(measured_snapshots))
 
@@ -641,13 +681,23 @@ def measure_manager_loop(experiment: str,
 
         max_cycle = _time_to_cycle(max_total_time)
         queued_snapshots = set()  # type: ignore[var-annotated]
+        retry_counts: dict = {}
         while not scheduler.all_trials_ended(experiment):
             continue_inner_loop = measure_manager_inner_loop(
                 experiment, max_cycle, request_queue, response_queue,
-                queued_snapshots)
+                queued_snapshots, retry_counts)
             if not continue_inner_loop:
                 break
             time.sleep(MEASUREMENT_LOOP_WAIT)
+
+        # Trials have ended; drain any last worker responses so exhausted
+        # retries still get a sentinel snapshot written.
+        final_snapshots = consume_snapshots_from_response_queue(
+            response_queue, queued_snapshots, retry_counts)
+        if final_snapshots:
+            db_utils.add_all(final_snapshots)
+            logger.info('Drained %d final snapshots after trials ended.',
+                        len(final_snapshots))
         logger.info('All trials ended. Ending measure manager loop')
 
 

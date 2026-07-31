@@ -349,22 +349,62 @@ def test_consume_unmapped_type_from_response_queue():
     assert not snapshots
 
 
+def test_initialize_measurement_dirs_clears_stale_cov_summary(fs, environ):
+    """initialize_measurement_dirs deletes a leftover cov_summary.json so a
+    failed cycle cannot reuse a prior cycle's summary."""
+    os.environ = {
+        'WORK': '/work',
+        'EXPERIMENT_FILESTORE': '/tmp/bucket',
+        'EXPERIMENT': 'experiment',
+    }
+    snapshot_measurer = measure_manager.SnapshotMeasurer(
+        FUZZER, BENCHMARK, TRIAL_NUM, SNAPSHOT_LOGGER, REGION_COVERAGE)
+    fs.create_dir(snapshot_measurer.report_dir)
+    fs.create_file(snapshot_measurer.cov_summary_file, contents='stale')
+    # Cumulative profdata must survive.
+    profdata = os.path.join(snapshot_measurer.report_dir, 'data.profdata')
+    fs.create_file(profdata, contents='keep')
+
+    snapshot_measurer.initialize_measurement_dirs()
+
+    assert not os.path.exists(snapshot_measurer.cov_summary_file)
+    assert os.path.exists(profdata)
+
+
 def test_consume_retry_type_from_response_queue():
-    """Tests the scenario where a retry object is retrieved from the
-    response queue. In this scenario, we want to remove the snapshot identifier
-    from the queued_snapshots set, as this allows the measurement task to be
-    retried in the future."""
-    # Use normal queue here as multiprocessing queue gives flaky tests.
+    """Tests that a RetryRequest removes the snapshot from queued_snapshots so
+    it can be re-queued, while under the retry limit."""
     response_queue = queue.Queue()
     retry_request_object = measurer_datatypes.RetryRequest(
         'fuzzer', 'benchmark', TRIAL_NUM, CYCLE)
     snapshot_identifier = (TRIAL_NUM, CYCLE)
     response_queue.put(retry_request_object)
     queued_snapshots_set = set([snapshot_identifier])
+    retry_counts = {}
     snapshots = measure_manager.consume_snapshots_from_response_queue(
-        response_queue, queued_snapshots_set)
+        response_queue, queued_snapshots_set, retry_counts)
     assert not snapshots
     assert len(queued_snapshots_set) == 0
+    assert retry_counts[snapshot_identifier] == 1
+
+
+def test_consume_retry_gives_up_after_num_retries():
+    """After NUM_RETRIES failures, a zero-coverage snapshot is recorded and the
+    cycle stays queued so it is not retried again."""
+    response_queue = queue.Queue()
+    snapshot_identifier = (TRIAL_NUM, CYCLE)
+    queued_snapshots_set = {snapshot_identifier}
+    retry_counts = {snapshot_identifier: measure_manager.NUM_RETRIES - 1}
+    response_queue.put(
+        measurer_datatypes.RetryRequest('fuzzer', 'benchmark', TRIAL_NUM,
+                                        CYCLE))
+    snapshots = measure_manager.consume_snapshots_from_response_queue(
+        response_queue, queued_snapshots_set, retry_counts)
+    assert len(snapshots) == 1
+    assert snapshots[0].trial_id == TRIAL_NUM
+    assert snapshots[0].edges_covered == 0
+    assert snapshot_identifier in queued_snapshots_set
+    assert retry_counts[snapshot_identifier] == measure_manager.NUM_RETRIES
 
 
 def test_consume_snapshot_type_from_response_queue():

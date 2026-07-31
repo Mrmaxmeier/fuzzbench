@@ -51,10 +51,9 @@ def do_coverage_run(  # pylint: disable=too-many-locals
     # The run still has to happen. The binary writes its .profraw when the
     # process exits, whatever the merge did, and that file is what the rest of
     # measurement is built on: without it the cycle produces no coverage
-    # summary, measure_snapshot_coverage returns None, and the measure manager
-    # reschedules the same cycle forever without ever recording a snapshot.
-    # Skipping the run to avoid the misleading log costs the whole experiment
-    # its measurements.
+    # summary and measure_snapshot_coverage returns None. The measure manager
+    # retries a failed cycle a bounded number of times, then records a
+    # zero-coverage snapshot so later cycles can still advance.
     found_new_units = bool(os.listdir(new_units_dir))
 
     with tempfile.TemporaryDirectory() as merge_dir:
