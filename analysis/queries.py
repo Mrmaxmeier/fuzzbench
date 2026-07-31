@@ -27,6 +27,7 @@ def get_experiment_data(experiment_names, main_experiment_benchmarks=None):
         snapshots_query = session.query(
             Experiment.git_hash, Experiment.experiment_filestore,
             Trial.experiment, Trial.fuzzer, Trial.benchmark,
+            Trial.benchmark_digest,
             Trial.time_started, Trial.time_ended,
             Snapshot.trial_id, Snapshot.time, Snapshot.edges_covered,
             Snapshot.fuzzer_stats, Crash.crash_key)\
@@ -73,10 +74,11 @@ def add_nonprivate_experiments_for_merge_with_clobber(experiment_names):
                                              experiment_creation_time)
 
         nonprivate_experiments = session.query(Experiment.name).filter(
-            ~Experiment.private, ~Experiment.name.in_(experiment_names),
+            ~Experiment.private,
+            ~Experiment.name.in_(experiment_names),
             ~Experiment.time_ended.is_(None),
-            Experiment.time_created <= earliest_creation_time).order_by(
-                Experiment.time_created)
+            Experiment.time_created <= earliest_creation_time,
+        ).order_by(Experiment.time_created)
         nonprivate_experiment_names = [
             result[0] for result in nonprivate_experiments
         ]

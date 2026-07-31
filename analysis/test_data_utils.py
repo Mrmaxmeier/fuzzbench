@@ -78,6 +78,47 @@ def test_validate_data_missing_columns():
         data_utils.validate_data(experiment_df)
 
 
+def test_validate_data_without_digests_is_allowed():
+    """Data predating the image lock has nothing to check against."""
+    experiment_df = create_experiment_data()
+    assert 'benchmark_digest' not in experiment_df.columns
+    data_utils.validate_data(experiment_df)
+
+
+def test_validate_data_accepts_one_digest_per_benchmark():
+    """The ordinary case: every trial of a benchmark ran the same build."""
+    experiment_df = create_experiment_data()
+    experiment_df['benchmark_digest'] = experiment_df.benchmark.map(
+        lambda benchmark: f'sha256:{benchmark}')
+    data_utils.validate_data(experiment_df)
+
+
+def test_validate_data_rejects_conflicting_digests():
+    """Two builds of one benchmark name in a merged report is the silent wrong
+    answer this check exists to catch."""
+    experiment_df = create_experiment_data()
+    experiment_df['benchmark_digest'] = 'sha256:original'
+    experiment_df.loc[experiment_df.benchmark == 'libxml',
+                      'benchmark_digest'] = 'sha256:rebuilt'
+    experiment_df.loc[experiment_df.trial_id == 4,
+                      'benchmark_digest'] = 'sha256:original'
+
+    with pytest.raises(data_utils.BenchmarkDigestMismatch, match='libxml'):
+        data_utils.validate_data(experiment_df)
+
+
+def test_validate_data_tolerates_missing_digests(caplog):
+    """A trial with no recorded digest cannot be checked, but must not block
+    the report or be mistaken for a conflict."""
+    experiment_df = create_experiment_data()
+    experiment_df['benchmark_digest'] = 'sha256:original'
+    experiment_df.loc[experiment_df.benchmark == 'libxml',
+                      'benchmark_digest'] = None
+
+    data_utils.validate_data(experiment_df)
+    assert 'libxml' in caplog.text
+
+
 def test_drop_uniteresting_columns():
     experiment_df = create_experiment_data()
     cleaned_df = data_utils.drop_uninteresting_columns(experiment_df)

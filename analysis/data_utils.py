@@ -52,6 +52,62 @@ def validate_data(experiment_df):
         raise ValueError(
             f'Missing columns in experiment data: {missing_columns}')
 
+    validate_benchmark_digests(experiment_df)
+
+
+class BenchmarkDigestMismatch(ValueError):
+    """An exception for when one benchmark name covers two different builds."""
+
+
+def validate_benchmark_digests(experiment_df):
+    """Checks that each benchmark name refers to one benchmark image.
+
+    Reports merge experiments -- deliberately, via
+    add_nonprivate_experiments_for_merge_with_clobber -- and everything
+    downstream groups on the benchmark *name*. A benchmark's own source is
+    pinned by commit, but the dependencies it builds against are not: curl
+    fetches whatever ossfuzzdeps.sh resolves to on the day it is built. So the
+    same name months apart can be two different programs, and comparing
+    fuzzers across them produces a plausible-looking, wrong answer.
+
+    Trials record which benchmark image they actually ran, so that case is
+    detectable. It is raised rather than warned about, because the whole
+    outcome of the report is what is wrong.
+    """
+    if 'benchmark_digest' not in experiment_df.columns:
+        # Data predating the image lock. Nothing to check against.
+        return
+
+    unknown = experiment_df[experiment_df.benchmark_digest.isna()]
+    if not unknown.empty:
+        logger.warning(
+            'Some trials have no benchmark image digest, so they cannot be '
+            'checked for benchmark drift: %s. These predate the image lock.',
+            sorted(unknown.benchmark.unique()))
+
+    known = experiment_df[experiment_df.benchmark_digest.notna()]
+    if known.empty:
+        return
+
+    mismatched = {}
+    for benchmark, group in known.groupby('benchmark', sort=False):
+        digests = sorted(group.benchmark_digest.unique())
+        if len(digests) > 1:
+            mismatched[benchmark] = (digests, sorted(group.experiment.unique()))
+
+    if not mismatched:
+        return
+
+    details = '; '.join(
+        f'{benchmark} was built as {len(digests)} different images '
+        f'({", ".join(digest[:19] for digest in digests)}) across experiments '
+        f'{experiments}'
+        for benchmark, (digests, experiments) in sorted(mismatched.items()))
+    raise BenchmarkDigestMismatch(
+        'Refusing to compare fuzzers across different builds of the same '
+        f'benchmark: {details}. Restrict the report to experiments that share '
+        'a benchmark build.')
+
 
 def drop_uninteresting_columns(experiment_df):
     """Returns table with only interesting columns."""
@@ -333,8 +389,7 @@ def benchmark_rank_by_stat_test_wins(benchmark_snapshot_df,
     p_values = stat_tests.one_sided_u_test(benchmark_snapshot_df, key=key)
 
     # Turn "significant" p-values into 1-s.
-    better_than = p_values.map(
-        lambda p: p < stat_tests.SIGNIFICANCE_THRESHOLD)
+    better_than = p_values.map(lambda p: p < stat_tests.SIGNIFICANCE_THRESHOLD)
     better_than = better_than.map(int)
 
     score = better_than.sum(axis=1).sort_values(ascending=False)
@@ -349,8 +404,7 @@ def create_better_than_table(benchmark_snapshot_df, key='edges_covered'):
     p_values = stat_tests.one_sided_u_test(benchmark_snapshot_df, key=key)
 
     # Turn "significant" p-values into 1-s.
-    better_than = p_values.map(
-        lambda p: p < stat_tests.SIGNIFICANCE_THRESHOLD)
+    better_than = p_values.map(lambda p: p < stat_tests.SIGNIFICANCE_THRESHOLD)
     better_than = better_than.map(int)
 
     # Order rows and columns of matrix according to score ranking.
@@ -371,7 +425,7 @@ def experiment_pivot_table(experiment_snapshots_df,
     are the scores according to the per benchmark ranking."""
     benchmark_blocks = experiment_snapshots_df.groupby('benchmark')
     groups_ranked = benchmark_blocks.apply(benchmark_level_ranking_function,
-                                             include_groups=False)
+                                           include_groups=False)
     already_unstacked = groups_ranked.index.names == ['benchmark']
     pivot_df = groups_ranked if already_unstacked else groups_ranked.unstack()
     return pivot_df
