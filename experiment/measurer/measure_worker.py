@@ -23,23 +23,34 @@ MEASUREMENT_TIMEOUT = 1
 logger = logs.Logger()  # pylint: disable=invalid-name
 
 
-class BaseMeasureWorker:
-    """Base class for measure worker. Encapsulates core methods that will be
-    implemented for Local and Google Cloud measure workers."""
+class MeasureWorker:
+    """Local measurer worker that pulls snapshot requests from a queue,
+    measures them, and returns results (or retry requests) on a response
+    queue."""
 
     def __init__(self, config: Dict):
         self.request_queue = config['request_queue']
         self.response_queue = config['response_queue']
         self.region_coverage = config['region_coverage']
 
-    def get_task_from_request_queue(self):
-        """"Get task from request queue"""
-        raise NotImplementedError
+    def get_task_from_request_queue(
+            self) -> measurer_datatypes.SnapshotMeasureRequest:
+        """Get item from request multiprocessing queue, block if necessary until
+        an item is available"""
+        request = self.request_queue.get(block=True)
+        return request
 
-    def put_result_in_response_queue(self, measured_snapshot, request):
-        """Save measurement result in response queue, for the measure manager to
-        retrieve"""
-        raise NotImplementedError
+    def put_result_in_response_queue(
+            self, measured_snapshot: Optional[Snapshot],
+            request: measurer_datatypes.SnapshotMeasureRequest):
+        if measured_snapshot:
+            logger.info('Put measured snapshot in response_queue')
+            self.response_queue.put(measured_snapshot)
+        else:
+            retry_request = measurer_datatypes.RetryRequest(
+                request.fuzzer, request.benchmark, request.trial_id,
+                request.cycle)
+            self.response_queue.put(retry_request)
 
     def measure_worker_loop(self):
         """Periodically retrieves request from request queue, measure it, and
@@ -72,27 +83,3 @@ class BaseMeasureWorker:
                              })
             self.put_result_in_response_queue(measured_snapshot, request)
             time.sleep(MEASUREMENT_TIMEOUT)
-
-
-class LocalMeasureWorker(BaseMeasureWorker):
-    """Class that holds implementations of core methods for running a measure
-    worker locally."""
-
-    def get_task_from_request_queue(
-            self) -> measurer_datatypes.SnapshotMeasureRequest:
-        """Get item from request multiprocessing queue, block if necessary until
-        an item is available"""
-        request = self.request_queue.get(block=True)
-        return request
-
-    def put_result_in_response_queue(
-            self, measured_snapshot: Optional[Snapshot],
-            request: measurer_datatypes.SnapshotMeasureRequest):
-        if measured_snapshot:
-            logger.info('Put measured snapshot in response_queue')
-            self.response_queue.put(measured_snapshot)
-        else:
-            retry_request = measurer_datatypes.RetryRequest(
-                request.fuzzer, request.benchmark, request.trial_id,
-                request.cycle)
-            self.response_queue.put(retry_request)

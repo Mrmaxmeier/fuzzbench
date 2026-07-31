@@ -29,7 +29,7 @@ FUZZ_TARGET_SEARCH_STRING = b'LLVMFuzzerTestOneInput'
 VALID_FUZZER_REGEX = re.compile(r'^[a-z][a-z0-9_]*$')
 
 FUZZERS_DIR = os.path.join(utils.ROOT_DIR, 'fuzzers')
-COVERAGE_TOOLS = {'coverage', 'coverage_source_based'}
+COVERAGE_TOOLS = {'coverage'}
 
 
 class FuzzerDirectory:

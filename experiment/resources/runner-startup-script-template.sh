@@ -22,18 +22,6 @@ echo 0 > /proc/sys/kernel/yama/ptrace_scope
 echo core >/proc/sys/kernel/core_pattern
 
 # Start docker.
-{% if not local_experiment %}
-# Hack because container-optmized-os doesn't support writing to /home/root.
-# docker-credential-gcr needs to write to a dotfile in $HOME.
-export HOME=/home/chronos
-mkdir -p $HOME
-docker-credential-gcr configure-docker -include-artifact-registry
-
-while ! docker pull {{runner_image_ref}}
-do
-  echo 'Error pulling image, retrying...'
-done{% endif %}
-
 docker run \
 --privileged --cpus={{num_cpu_cores}} --rm \
 {% if cpuset %}--cpuset-cpus={{cpuset}} {% endif %}\
@@ -50,13 +38,12 @@ docker run \
 -e NO_DICTIONARIES={{no_dictionaries}} \
 -e OSS_FUZZ_CORPUS={{oss_fuzz_corpus}} \
 -e CUSTOM_SEED_CORPUS_DIR={{custom_seed_corpus_dir}} \
--e DOCKER_REGISTRY={{docker_registry}} {% if not local_experiment %}-e CLOUD_PROJECT={{cloud_project}} -e CLOUD_COMPUTE_ZONE={{cloud_compute_zone}} {% endif %}\
--e EXPERIMENT_FILESTORE={{experiment_filestore}} {% if local_experiment %}-v {{experiment_filestore}}:{{experiment_filestore}} {% endif %}\
--e REPORT_FILESTORE={{report_filestore}} {% if local_experiment %}-v {{report_filestore}}:{{report_filestore}} {% endif %}\
+-e DOCKER_REGISTRY={{docker_registry}} \
+-e EXPERIMENT_FILESTORE={{experiment_filestore}} -v {{experiment_filestore}}:{{experiment_filestore}} \
+-e REPORT_FILESTORE={{report_filestore}} -v {{report_filestore}}:{{report_filestore}} \
 -e FUZZ_TARGET={{fuzz_target}} \
 -e PRIVATE={{private}} \
--e LOCAL_EXPERIMENT={{local_experiment}} \
-{% if not local_experiment %}--name=runner-container {% endif %}\
+-e LOCAL_EXPERIMENT=True \
 --shm-size=2g \
 --cap-add SYS_NICE --cap-add SYS_PTRACE \
 --security-opt seccomp=unconfined \

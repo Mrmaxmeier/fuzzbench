@@ -16,12 +16,9 @@ experiment: test-experiment
 trials: 4
 max_total_time: 86400
 snapshot_period: 900
-cloud_project: fuzzbench
 docker_registry: localhost/fuzzbench
-cloud_compute_zone: us-central1-a
 experiment_filestore: /tmp/experiment-data
 report_filestore: /tmp/web-reports
-cloud_sql_instance_connection_name: "fuzzbench:us-central1:experiment-db=tcp:5432"
 benchmarks:
   - benchmark-1
   - benchmark-2
@@ -38,6 +35,5 @@ concurrent_builds: null
 runners_cpus: null
 measurers_cpus: null
 runner_num_cpu_cores: 1
-runner_machine_type: 'n1-standard-1'
 private: false
 micro_experiment: false

@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Script to run on the dispatcher. Builds each benchmark with each fuzzing
-configuration, spawns a runner VM for each benchmark-fuzzer combo, and then
-records coverage data received from the runner VMs."""
+configuration, starts a runner for each benchmark-fuzzer combo, and then
+records coverage data received from the runners."""
 
 import datetime
 import multiprocessing
@@ -37,7 +37,6 @@ from experiment.build import local_build
 from experiment.measurer import measure_manager
 from experiment import reporter
 from experiment import scheduler
-from experiment import stop_experiment
 
 LOOP_WAIT_SECONDS = 5 * 60
 
@@ -156,8 +155,7 @@ def dispatcher_main():
     # reason.
     multiprocessing.set_start_method('spawn')
     db_utils.initialize()
-    if experiment_utils.is_local_experiment():
-        models.Base.metadata.create_all(db_utils.engine)
+    models.Base.metadata.create_all(db_utils.engine)
 
     experiment_config_file_path = _get_config_file_path()
     experiment = Experiment(experiment_config_file_path)
@@ -218,16 +216,7 @@ def main():
         logs.error('Error conducting experiment.')
         raise error
 
-    if experiment_utils.is_local_experiment():
-        return 0
-
-    experiment_config_file_path = _get_config_file_path()
-
-    if stop_experiment.stop_experiment(experiment_utils.get_experiment_name(),
-                                       experiment_config_file_path):
-        return 0
-
-    return 1
+    return 0
 
 
 if __name__ == '__main__':

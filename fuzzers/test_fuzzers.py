@@ -24,7 +24,7 @@ from common import utils
 import fuzzers.afl.fuzzer
 
 # pylint: disable=invalid-name,unused-argument
-COVERAGE_TOOLS = {'coverage', 'coverage_source_based'}
+COVERAGE_TOOLS = {'coverage'}
 
 
 def get_all_fuzzer_dirs():

@@ -182,23 +182,18 @@ def schedule_loop(experiment_config: dict):
     # Create the thread pool once and reuse it to avoid leaking threads and
     # other issues.
     logger.info('Starting scheduler.')
-    local_experiment = experiment_utils.is_local_experiment()
     pool_args: tuple = ()
     core_allocation: dict = {}
     runners_cpus = experiment_config['runners_cpus']
     if runners_cpus is not None:
-        if local_experiment:
-            runner_num_cpu_cores = experiment_config['runner_num_cpu_cores']
-            processes = runners_cpus // runner_num_cpu_cores
-            logger.info('Scheduling runners from core 0 to %d.',
-                        runner_num_cpu_cores * processes - 1)
-            for cpu in range(0, runner_num_cpu_cores * processes,
-                             runner_num_cpu_cores):
-                core_allocation[
-                    f'{cpu}-{cpu + runner_num_cpu_cores - 1}'] = None
-            pool_args = (processes,)
-        else:
-            pool_args = (runners_cpus,)
+        runner_num_cpu_cores = experiment_config['runner_num_cpu_cores']
+        processes = runners_cpus // runner_num_cpu_cores
+        logger.info('Scheduling runners from core 0 to %d.',
+                    runner_num_cpu_cores * processes - 1)
+        for cpu in range(0, runner_num_cpu_cores * processes,
+                         runner_num_cpu_cores):
+            core_allocation[f'{cpu}-{cpu + runner_num_cpu_cores - 1}'] = None
+        pool_args = (processes,)
 
     # Empty allocation means "no CPU pinning".
     if not core_allocation:
@@ -219,8 +214,8 @@ def schedule_loop(experiment_config: dict):
                 scheduling_error = True
 
             # Back off on unexpected errors or when pending trials could not be
-            # started (e.g. cloud instance quota). Otherwise poll periodically
-            # while trials are still running.
+            # started. Otherwise poll periodically while trials are still
+            # running.
             if scheduling_error or (not started_trials and
                                     any_pending_trials(experiment)):
                 time.sleep(FAIL_WAIT_SECONDS)
@@ -370,7 +365,6 @@ def render_startup_script_template(  # pylint: disable=too-many-arguments
         'fuzz_target': fuzz_target,
         'runner_image_ref': runner_image_ref,
         'docker_registry': experiment_config['docker_registry'],
-        'local_experiment': True,
         'no_seeds': experiment_config['no_seeds'],
         'no_dictionaries': experiment_config['no_dictionaries'],
         'oss_fuzz_corpus': experiment_config['oss_fuzz_corpus'],

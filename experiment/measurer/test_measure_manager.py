@@ -202,7 +202,7 @@ def test_run_cov_new_units(_, mocked_execute, fs, environ):
     """Tests that run_cov_new_units does a coverage run as we expect."""
     os.environ = {
         'WORK': '/work',
-        'EXPERIMENT_FILESTORE': 'gs://bucket',
+        'EXPERIMENT_FILESTORE': '/tmp/bucket',
         'EXPERIMENT': 'experiment',
     }
     mocked_execute.return_value = new_process.ProcessResult(0, '', False)
@@ -245,7 +245,7 @@ def test_run_cov_new_units(_, mocked_execute, fs, environ):
                 ('/work/measurement-folders/'
                  'benchmark-a-fuzzer-a/trial-12/coverage/data-%m.profraw'),
             'WORK': '/work',
-            'EXPERIMENT_FILESTORE': 'gs://bucket',
+            'EXPERIMENT_FILESTORE': '/tmp/bucket',
             'EXPERIMENT': 'experiment',
         },
         'expect_zero': False,

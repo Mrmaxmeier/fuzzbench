@@ -51,11 +51,7 @@ fail-under=10
 # ignore-list. The regex matches against paths and can be in Posix or Windows
 # format. Because '\' represents the directory delimiter on Windows systems, it
 # can't be used as an escape character.
-ignore-paths=fuzzers/libfuzzer_focus_.*,
-             fuzzers/.*_um_.*,
-             fuzzers/.*_muttfuzz,
-             fuzzers/libafl_text,
-             fuzzers/.*_cmplog_.*,
+ignore-paths=
 
 
 # Files or directories matching the regular expression patterns are skipped.

@@ -43,7 +43,7 @@ def create_trial_data(  # pylint: disable=too-many-arguments
 
 def create_experiment_data(experiment='test_experiment',
                            incomplete=False,
-                           experiment_filestore='gs://fuzzbench-data'):
+                           experiment_filestore='/tmp/fuzzbench-data'):
     """Utility function to create test experiment data."""
     return pd.concat([
         create_trial_data(0, 'libpng_libpng_read_fuzzer', 'afl', 10, 100,

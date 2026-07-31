@@ -69,7 +69,6 @@ def test_get_rules_for_runner_image():
 \t--cap-add SYS_NICE \\\n\
 \t--cap-add SYS_PTRACE \\\n\
 \t-e FUZZ_OUTSIDE_EXPERIMENT=1 \\\n\
-\t-e FORCE_LOCAL=1 \\\n\
 \t-e TRIAL_ID=1 \\\n\
 \t-e FUZZER=afl \\\n\
 \t-e BENCHMARK=zlib \\\n\
@@ -82,7 +81,6 @@ def test_get_rules_for_runner_image():
 \t--cap-add SYS_NICE \\\n\
 \t--cap-add SYS_PTRACE \\\n\
 \t-e FUZZ_OUTSIDE_EXPERIMENT=1 \\\n\
-\t-e FORCE_LOCAL=1 \\\n\
 \t-e TRIAL_ID=1 \\\n\
 \t-e FUZZER=afl \\\n\
 \t-e BENCHMARK=zlib \\\n\
@@ -96,7 +94,6 @@ def test_get_rules_for_runner_image():
 \t--cap-add SYS_NICE \\\n\
 \t--cap-add SYS_PTRACE \\\n\
 \t-e FUZZ_OUTSIDE_EXPERIMENT=1 \\\n\
-\t-e FORCE_LOCAL=1 \\\n\
 \t-e TRIAL_ID=1 \\\n\
 \t-e FUZZER=afl \\\n\
 \t-e BENCHMARK=zlib \\\n\
@@ -111,7 +108,6 @@ def test_get_rules_for_runner_image():
 \t--cap-add SYS_NICE \\\n\
 \t--cap-add SYS_PTRACE \\\n\
 \t-e FUZZ_OUTSIDE_EXPERIMENT=1 \\\n\
-\t-e FORCE_LOCAL=1 \\\n\
 \t-e TRIAL_ID=1 \\\n\
 \t-e FUZZER=afl \\\n\
 \t-e BENCHMARK=zlib \\\n\

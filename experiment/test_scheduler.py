@@ -88,8 +88,6 @@ def test_create_trial_instance(benchmark, expected_image, expected_target,
     """Test that create_trial_instance runs a local instance and creates a
     startup script for the trial, as we expect it to."""
     expected_startup_script = '''# Start docker.
-
-
 docker run \\
 --privileged --cpus=1 --rm \\
 \\
@@ -112,7 +110,6 @@ docker run \\
 -e FUZZ_TARGET={oss_fuzz_target} \\
 -e PRIVATE=False \\
 -e LOCAL_EXPERIMENT=True \\
-\\
 --shm-size=2g \\
 --cap-add SYS_NICE --cap-add SYS_PTRACE \\
 --security-opt seccomp=unconfined \\

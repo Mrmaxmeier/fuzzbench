@@ -27,7 +27,7 @@ from experiment.run_experiment import DEFAULT_CONCURRENT_BUILDS
 
 SRC_ROOT = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir)
 
-COVERAGE_TOOLS = {'coverage', 'coverage_source_based'}
+COVERAGE_TOOLS = {'coverage'}
 
 # pylint: disable=invalid-name,unused-argument,redefined-outer-name
 

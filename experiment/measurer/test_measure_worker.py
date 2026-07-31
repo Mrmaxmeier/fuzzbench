@@ -31,7 +31,7 @@ def local_measure_worker():
         'response_queue': response_queue,
         'region_coverage': region_coverage
     }
-    return measure_worker.LocalMeasureWorker(config)
+    return measure_worker.MeasureWorker(config)
 
 
 def test_put_snapshot_in_response_queue(local_measure_worker):  # pylint: disable=redefined-outer-name

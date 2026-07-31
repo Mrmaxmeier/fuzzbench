@@ -46,7 +46,7 @@ def get_core_fuzzers():
 def output_report(experiment_config: dict,
                   in_progress=False,
                   coverage_report=False):
-    """Generate the HTML report and write it to |web_bucket|."""
+    """Generate the HTML report and write it to the report filestore."""
     experiment_name = experiment_utils.get_experiment_name()
     reports_dir = get_reports_dir()
 
@@ -86,10 +86,7 @@ def output_report(experiment_config: dict,
         filestore_utils.rsync(
             str(reports_dir),
             web_filestore_path,
-            delete=False,  # Don't remove existing coverage jsons.
-            gsutil_options=[
-                '-h', 'Cache-Control:public,max-age=0,no-transform'
-            ])
+            delete=False)  # Don't remove existing coverage jsons.
         logger.debug('Done generating report.')
     except data_utils.EmptyDataError:
         logs.warning('No snapshot data.')

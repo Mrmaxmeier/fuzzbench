@@ -89,12 +89,6 @@ def get_runner_image_ref(runner_image_digest):
     return runner_image_digest
 
 
-def get_builder_image_url(benchmark, fuzzer, docker_registry):
-    """Get the URL of the docker builder image for fuzzing the benchmark with
-    fuzzer."""
-    return f'{docker_registry}/builders/{fuzzer}/{benchmark}'
-
-
 def validate_name(benchmark):
     """Returns True if |benchmark| is a valid fuzzbench benchmark name."""
     if VALID_BENCHMARK_REGEX.match(benchmark) is None:

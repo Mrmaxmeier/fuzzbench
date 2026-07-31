@@ -157,12 +157,8 @@ def read_and_validate_experiment_config(config_filename: str) -> Dict:
             Requirement(False, bool, False, ''),
         'merge_with_nonprivate':
             Requirement(False, bool, False, ''),
-        'runner_machine_type':
-            Requirement(False, str, True, ''),
         'runner_num_cpu_cores':
             Requirement(False, int, False, ''),
-        'runner_memory':
-            Requirement(False, str, False, ''),
         'micro_experiment':
             Requirement(False, bool, False, ''),
     }
@@ -307,15 +303,9 @@ def start_experiment(  # pylint: disable=too-many-arguments
     config['concurrent_builds'] = concurrent_builds
     config['measurers_cpus'] = measurers_cpus
     config['runners_cpus'] = runners_cpus
-    config['runner_machine_type'] = config.get('runner_machine_type',
-                                               'n1-standard-1')
     config['runner_num_cpu_cores'] = config.get('runner_num_cpu_cores', 1)
     assert (runners_cpus is None or
             runners_cpus >= config['runner_num_cpu_cores'])
-    # Note this is only used if runner_machine_type is None.
-    # 12GB is just the amount that KLEE needs, use this default to make KLEE
-    # experiments easier to run.
-    config['runner_memory'] = config.get('runner_memory', '12GB')
     config['region_coverage'] = region_coverage
 
     config['custom_seed_corpus_dir'] = custom_seed_corpus_dir

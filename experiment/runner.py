@@ -248,11 +248,11 @@ class TrialRunner:  # pylint: disable=too-many-instance-attributes
         if not environment.get('FUZZ_OUTSIDE_EXPERIMENT'):
             benchmark = environment.get('BENCHMARK')
             trial_id = environment.get('TRIAL_ID')
-            self.gcs_sync_dir = experiment_utils.get_trial_bucket_dir(
+            self.trial_filestore_dir = experiment_utils.get_trial_filestore_dir(
                 self.fuzzer, benchmark, trial_id)
-            filestore_utils.rm(self.gcs_sync_dir, force=True, parallel=True)
+            filestore_utils.rm(self.trial_filestore_dir, force=True, parallel=True)
         else:
-            self.gcs_sync_dir = None
+            self.trial_filestore_dir = None
 
         self.cycle = 0
         self.output_corpus = environment.get('OUTPUT_CORPUS_DIR')
@@ -425,15 +425,16 @@ class TrialRunner:  # pylint: disable=too-many-instance-attributes
         return archive
 
     def save_corpus_archive(self, archive):
-        """Save corpus |archive| to GCS and delete when done."""
-        if not self.gcs_sync_dir:
+        """Save corpus |archive| to the trial filestore and delete when done."""
+        if not self.trial_filestore_dir:
             return
 
         basename = os.path.basename(archive)
-        gcs_path = posixpath.join(self.gcs_sync_dir, CORPUS_DIRNAME, basename)
+        filestore_path = posixpath.join(self.trial_filestore_dir, CORPUS_DIRNAME,
+                                        basename)
 
         # Don't use parallel to avoid stability issues.
-        filestore_utils.cp(archive, gcs_path)
+        filestore_utils.cp(archive, filestore_path)
 
         # Delete corpus archive so disk doesn't fill up.
         os.remove(archive)
@@ -441,15 +442,15 @@ class TrialRunner:  # pylint: disable=too-many-instance-attributes
     @retry.wrap(NUM_RETRIES, RETRY_DELAY,
                 'experiment.runner.TrialRunner.archive_and_save_corpus')
     def archive_and_save_corpus(self):
-        """Archive and save the current corpus to GCS."""
+        """Archive and save the current corpus to the trial filestore."""
         archive = self.archive_corpus()
         self.save_corpus_archive(archive)
 
     @retry.wrap(NUM_RETRIES, RETRY_DELAY,
                 'experiment.runner.TrialRunner.save_results')
     def save_results(self):
-        """Save the results directory to GCS."""
-        if not self.gcs_sync_dir:
+        """Save the results directory to the trial filestore."""
+        if not self.trial_filestore_dir:
             return
         # Copy results directory before rsyncing it so that we don't get an
         # exception from uploading a file that changes in size. Files can change
@@ -457,7 +458,8 @@ class TrialRunner:  # pylint: disable=too-many-instance-attributes
         # directory and can be written to by the fuzzer at any time.
         results_copy = filesystem.make_dir_copy(self.results_dir)
         filestore_utils.rsync(
-            results_copy, posixpath.join(self.gcs_sync_dir, RESULTS_DIRNAME))
+            results_copy,
+            posixpath.join(self.trial_filestore_dir, RESULTS_DIRNAME))
 
 
 def get_fuzzer_module(fuzzer):

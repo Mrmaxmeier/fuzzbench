@@ -87,11 +87,6 @@ def get_experiment_type(benchmarks):
                      f'{benchmark_types}.')
 
 
-def get_cloud_project():
-    """Returns the cloud project."""
-    return os.environ['CLOUD_PROJECT']
-
-
 def get_experiment_filestore_path():
     """Returns experiment filestore path."""
     experiment_filestore = os.environ['EXPERIMENT_FILESTORE']
@@ -162,16 +157,6 @@ def get_crashes_archive_name(cycle: int) -> str:
     return get_cycle_filename('crashes', cycle) + '.tar.gz'
 
 
-def is_local_experiment():
-    """Returns True if running a local experiment."""
-    return bool(environment.get('LOCAL_EXPERIMENT'))
-
-
-def is_micro_experiment():
-    """Returns True if running a micro experiment."""
-    return bool(environment.get('MICRO_EXPERIMENT'))
-
-
 def get_trial_dir(fuzzer, benchmark, trial_id):
     """Returns the unique directory for |fuzzer|, |benchmark|, and
     |trial_id|."""
@@ -185,9 +170,9 @@ def get_benchmark_fuzzer_dir(benchmark, fuzzer):
     return f'{benchmark}-{fuzzer}'
 
 
-def get_trial_bucket_dir(fuzzer, benchmark, trial_id):
-    """Returns the unique directory in experiment-folders int the bucket for
-    |fuzzer|, |benchmark|, and |trial_id|."""
-    bucket = os.environ['EXPERIMENT_FILESTORE']
-    return posixpath.join(bucket, get_experiment_name(), 'experiment-folders',
+def get_trial_filestore_dir(fuzzer, benchmark, trial_id):
+    """Returns the unique trial directory under experiment-folders in the
+    experiment filestore for |fuzzer|, |benchmark|, and |trial_id|."""
+    filestore = os.environ['EXPERIMENT_FILESTORE']
+    return posixpath.join(filestore, get_experiment_name(), 'experiment-folders',
                           get_trial_dir(fuzzer, benchmark, trial_id))

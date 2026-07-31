@@ -184,7 +184,7 @@ def test_record_stats_exception(mocked_log_error, trial_runner, fuzzer_module):
 
 def test_trial_runner(trial_runner):
     """Tests that TrialRunner gets initialized as it is supposed to."""
-    assert trial_runner.gcs_sync_dir == (
+    assert trial_runner.trial_filestore_dir == (
         '/bucket/experiment-name/'
         'experiment-folders/benchmark-1-fuzzer_a/trial-1')
 
@@ -301,10 +301,10 @@ class TestIntegrationRunner:
         benchmark = 'MultipleConstraintsOnSmallInputTest'
         test_experiment_bucket = os.environ['TEST_EXPERIMENT_FILESTORE']
         experiment = 'integration-test-experiment'
-        gcs_directory = posixpath.join(test_experiment_bucket, experiment,
+        filestore_directory = posixpath.join(test_experiment_bucket, experiment,
                                        'experiment-folders',
                                        f'{benchmark}-{fuzzer}', 'trial-1')
-        filestore_utils.rm(gcs_directory, force=True)
+        filestore_utils.rm(filestore_directory, force=True)
         # Add fuzzer directory to make it easy to run fuzzer.py in local
         # configuration.
         os.environ['PYTHONPATH'] = ':'.join(
@@ -329,8 +329,8 @@ class TestIntegrationRunner:
                             return_value=max_total_time / 10):
                 runner.main()
 
-        gcs_corpus_directory = posixpath.join(gcs_directory, 'corpus')
-        snapshots = filestore_utils.ls(gcs_corpus_directory)
+        filestore_corpus_directory = posixpath.join(filestore_directory, 'corpus')
+        snapshots = filestore_utils.ls(filestore_corpus_directory)
 
         assert len(snapshots) >= 2
 
@@ -338,13 +338,13 @@ class TestIntegrationRunner:
         assert not os.path.exists(
             tmp_path / 'corpus-archives' / 'corpus-archive-0001.tar.gz')
 
-        local_gcs_corpus_dir_copy = tmp_path / 'gcs_corpus_dir'
-        os.mkdir(local_gcs_corpus_dir_copy)
-        filestore_utils.cp(posixpath.join(gcs_corpus_directory, '*'),
-                           str(local_gcs_corpus_dir_copy),
+        local_filestore_corpus_dir_copy = tmp_path / 'filestore_corpus_dir'
+        os.mkdir(local_filestore_corpus_dir_copy)
+        filestore_utils.cp(posixpath.join(filestore_corpus_directory, '*'),
+                           str(local_filestore_corpus_dir_copy),
                            recursive=True,
                            parallel=True)
-        archive_size = os.path.getsize(local_gcs_corpus_dir_copy /
+        archive_size = os.path.getsize(local_filestore_corpus_dir_copy /
                                        'corpus-archive-0001.tar.gz')
 
         assert archive_size > 500

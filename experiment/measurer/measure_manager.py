@@ -629,7 +629,7 @@ def measure_manager_loop(experiment: str,
             'response_queue': response_queue,
             'region_coverage': region_coverage,
         }
-        local_measure_worker = measure_worker.LocalMeasureWorker(config)
+        local_measure_worker = measure_worker.MeasureWorker(config)
 
         # Since each worker is going to be in an infinite loop, we dont need
         # result return. Workers' life scope will end automatically when there

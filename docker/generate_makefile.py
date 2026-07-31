@@ -63,7 +63,6 @@ def _get_makefile_run_template(image):
 \t--cap-add SYS_NICE \\\n\
 \t--cap-add SYS_PTRACE \\\n\
 \t-e FUZZ_OUTSIDE_EXPERIMENT=1 \\\n\
-\t-e FORCE_LOCAL=1 \\\n\
 \t-e TRIAL_ID=1 \\\n\
 \t-e FUZZER={fuzzer} \\\n\
 \t-e BENCHMARK={benchmark} \\\n\
@@ -104,7 +103,7 @@ def _get_makefile_run_template(image):
 
 def get_rules_for_image(name, image):
     """Returns makefile section for |image|."""
-    if not ('base-' in name or 'dispatcher-' in name or name == 'worker'):
+    if not ('base-' in name or 'dispatcher-' in name):
         section = '.'
     else:
         section = ''

@@ -18,31 +18,6 @@ import os
 
 ROOT_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
-assert not (os.getenv('FORCE_NOT_LOCAL') and os.getenv('FORCE_LOCAL')), (
-    'You can\'t set FORCE_LOCAL and FORCE_NOT_LOCAL environment variables to '
-    'True at the same time. If you haven\'t set either of these and/or don\'t '
-    'understand why this is happening please file a bug.')
-
-# pylint: disable=invalid-name
-_is_local = None
-
-if os.getenv('FORCE_NOT_LOCAL'):
-    # Allow tests to force is_local to return False.
-    _is_local = False
-
-if os.getenv('FORCE_LOCAL'):
-    _is_local = True
-
-
-def is_local():
-    """Returns True on local development machines unless FORCE_NOT_LOCAL."""
-    global _is_local  # pylint: disable=invalid-name
-
-    if _is_local is not None:
-        return _is_local
-    _is_local = True
-    return _is_local
-
 
 def string_hash(obj):
     """Returns a SHA-1 hash of the object. Not used for security purposes."""

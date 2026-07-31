@@ -17,16 +17,6 @@
   tag: 'dispatcher-image'
   type: 'dispatcher'
 
-'worker':
-  build_arg:
-    - 'base_image={registry}/base-image'
-  depends_on:
-    - 'base-image'
-  dockerfile: 'docker/worker/Dockerfile'
-  context: '.'
-  tag: 'worker'
-  type: 'worker'
-
 # TODO: It would be better to call this benchmark builder. But that would be
 # confusing because this doesn't involve benchmark-builder/Dockerfile. Rename
 # that and then rename this.

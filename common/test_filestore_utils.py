@@ -97,17 +97,3 @@ def test_keyword_args(experiment):  # pylint: disable=unused-argument
             filestore_utils.cp(LOCAL_DIR, LOCAL_DIR_2, parallel=True)
         mocked_execute.assert_called_with(['cp', LOCAL_DIR, LOCAL_DIR_2],
                                           expect_zero=True)
-
-
-def test_gsutil_options_ignored(fs, experiment):  # pylint: disable=invalid-name,unused-argument
-    """Tests that gsutil_options are ignored by the local filestore backend."""
-    fs.create_dir(LOCAL_DIR)
-    fs.create_dir(LOCAL_DIR_2)
-    with mock.patch('common.new_process.execute') as mocked_execute:
-        filestore_utils.rsync(
-            LOCAL_DIR,
-            LOCAL_DIR_2,
-            gsutil_options=['-h', 'Cache-Control:public'])
-        mocked_execute.assert_called_with(
-            ['rsync', '--delete', '-r', f'{LOCAL_DIR}/', LOCAL_DIR_2],
-            expect_zero=True)
