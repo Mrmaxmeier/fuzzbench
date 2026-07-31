@@ -100,7 +100,7 @@
             above) while showing the significance of the differences as well.
             What is considered a "critical difference" (CD) is based on the
             Friedman/Nemenyi post-hoc test. See more in the <a
-            href="https://google.github.io/fuzzbench/reference/report/">
+            href="https://github.com/Mrmaxmeier/fuzzbench/blob/master/docs/reference/report.md">
             documentation</a>.
 
             <br>
@@ -116,7 +116,7 @@
             shown in this diagram can be lower than it should be. So please
             check the list of supported benchmarks for the fuzzer(s) of your interest.
             The list could be specified in the fuzzer's README.md like
-            <a href="https://github.com/google/fuzzbench/blob/master/fuzzers/aflsmart/README.md">this</a>.
+            <a href="https://github.com/Mrmaxmeier/fuzzbench/blob/master/fuzzers/aflsmart/README.md">this</a>.
 
             {% endif %} {# show critical difference diagram #}
 
@@ -410,13 +410,13 @@
             You can download the raw data for this report <a href="data.csv.gz">here</a>.
 
             <br><br>
-            Check out the <a href="https://google.github.io/fuzzbench/developing-fuzzbench/custom_analysis_and_reports">documentation</a> on how to create customized reports using this data.
-            Also see some example Colab notebooks for doing custom analysis on the data <a href="https://github.com/google/fuzzbench/tree/master/analysis/notebooks">here</a>.
+            Check out the <a href="https://github.com/Mrmaxmeier/fuzzbench/tree/master/docs/developing-fuzzbench/custom_analysis_and_reports.md">documentation</a> on how to create customized reports using this data.
+            Also see some example Colab notebooks for doing custom analysis on the data <a href="https://github.com/Mrmaxmeier/fuzzbench/tree/master/analysis/notebooks">here</a>.
 
             {% if experiment.git_hash %}
             <br><br>
             The experiment was conducted using this FuzzBench commit:
-            <a href="https://github.com/google/fuzzbench/commits/{{ experiment.git_hash }}">{{ experiment.git_hash }}</a>
+            <a href="https://github.com/Mrmaxmeier/fuzzbench/commits/{{ experiment.git_hash }}">{{ experiment.git_hash }}</a>
 
             <br><br>
             To reproduce this experiment run the following commands in your FuzzBench repo:</a><br>

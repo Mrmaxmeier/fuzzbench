@@ -57,7 +57,7 @@ RUN git clone <git_url> /fuzzer_lib_src
 RUN cd /fuzzer_lib_src && clang++ fuzzer_lib.o
 ```
 
-Example: [afl](https://github.com/google/fuzzbench/blob/master/fuzzers/afl/builder.Dockerfile).
+Example: [afl](https://github.com/Mrmaxmeier/fuzzbench/blob/master/fuzzers/afl/builder.Dockerfile).
 
 ### runner.Dockerfile
 
@@ -71,7 +71,7 @@ RUN apt-get update && \                    # Install any runtime dependencies fo
     apt-get install pkg1 pkg2
 ```
 
-Example: [honggfuzz](https://github.com/google/fuzzbench/blob/master/fuzzers/honggfuzz/runner.Dockerfile).
+Example: [honggfuzz](https://github.com/Mrmaxmeier/fuzzbench/blob/master/fuzzers/honggfuzz/runner.Dockerfile).
 
 As you can see by looking at the runner.Dockerfile of other projects, in most
 cases only the `FROM` line is needed since most fuzzers do not have any special
@@ -80,7 +80,7 @@ runtime dependencies.
 ### fuzzer.py
 
 This file specifies how to build and fuzz benchmarks using your fuzzer. We hope
-to have accommodated most common use cases but please [file an issue](https://github.com/google/fuzzbench/issues/new) if
+to have accommodated most common use cases but please [file an issue](https://github.com/Mrmaxmeier/fuzzbench/issues/new) if
 you're having trouble.
 
 In your fuzzer directory, create a Python file named `fuzzer.py`. It must
@@ -161,7 +161,7 @@ def fuzz(input_corpus, output_corpus, target_binary):
     ])
 ```
 
-Example: [afl](https://github.com/google/fuzzbench/blob/master/fuzzers/afl/fuzzer.py).
+Example: [afl](https://github.com/Mrmaxmeier/fuzzbench/blob/master/fuzzers/afl/fuzzer.py).
 
 Environment variables `FUZZER` and `BENCHMARK` are available to use during
 execution of `build()` and `fuzz()` functions.
@@ -186,17 +186,17 @@ Therefore, AFL's shim takes data from AFL and passes it to
 If, like AFL, your fuzzer has a [persistent mode](https://lcamtuf.blogspot.com/2015/06/new-in-afl-persistent-mode.html),
 your `FUZZER_LIB` should be a library that will call `LLVMFuzzerTestOneInput`
 in a loop during fuzzing.
-For example, in [afl's builder.Dockerfile](https://github.com/google/fuzzbench/blob/master/fuzzers/afl/builder.Dockerfile)
+For example, in [afl's builder.Dockerfile](https://github.com/Mrmaxmeier/fuzzbench/blob/master/fuzzers/afl/builder.Dockerfile)
 you can see how [afl_driver.cpp](https://github.com/llvm/llvm-project/blob/main/compiler-rt/lib/fuzzer/afl/afl_driver.cpp#L223-L276)
 is built. In
-[afl's fuzzer.py](https://github.com/google/fuzzbench/blob/master/fuzzers/afl/fuzzer.py)
+[afl's fuzzer.py](https://github.com/Mrmaxmeier/fuzzbench/blob/master/fuzzers/afl/fuzzer.py)
 this gets used as the `FUZZER_LIB`.
 
 If your fuzzer does not support persistent mode, you can use the
 [StandAloneFuzzTargetMain.cpp](https://github.com/llvm/llvm-project/blob/main/compiler-rt/lib/fuzzer/standalone/StandaloneFuzzTargetMain.c)
 as your `FUZZER_LIB`. This file takes files as arguments, reads them, and
 invokes `LLVMFuzzerTestOneInput` using their data as input
-(See [Eclipser](https://github.com/google/fuzzbench/blob/master/fuzzers/eclipser/builder.Dockerfile)
+(See [Eclipser](https://github.com/Mrmaxmeier/fuzzbench/blob/master/fuzzers/eclipser/builder.Dockerfile)
 for an example of this). This can be used for a fuzzer that must restart the
 target after executing each input.
 
@@ -205,10 +205,10 @@ target after executing each input.
 Most fuzzers, such as FairFuzz are based off other fuzzers such as AFL.
 In many cases such as these, the derivative fuzzer can simply reuse the
 original's integration. For example, FairFuzz's
-[fuzzer.py](https://github.com/google/fuzzbench/blob/master/fuzzers/fairfuzz/fuzzer.py)
+[fuzzer.py](https://github.com/Mrmaxmeier/fuzzbench/blob/master/fuzzers/fairfuzz/fuzzer.py)
 imports AFL's `build` and `fuzz` functions and calls them from its own.
-And its [builder.Dockerfile](https://github.com/google/fuzzbench/blob/master/fuzzers/fairfuzz/builder.Dockerfile)
-is essentially a copy of AFL's [builder.Dockerfile](https://github.com/google/fuzzbench/blob/master/fuzzers/AFL/builder.Dockerfile)
+And its [builder.Dockerfile](https://github.com/Mrmaxmeier/fuzzbench/blob/master/fuzzers/fairfuzz/builder.Dockerfile)
+is essentially a copy of AFL's [builder.Dockerfile](https://github.com/Mrmaxmeier/fuzzbench/blob/master/fuzzers/afl/builder.Dockerfile)
 that simply clones FairFuzz from a different source (Dockerfile functionality
 should be copied to be reused, inheriting using `FROM` can't be used for this
 purpose).
@@ -216,7 +216,7 @@ purpose).
 In the case of AFL, we have tried to write the `fuzzer.py` file to be modular
 enough to support different use cases than needing the exact same binaries and
 fuzzing invocation as AFL. Example:
-[aflplusplus](https://github.com/google/fuzzbench/blob/master/fuzzers/aflplusplus/fuzzer.py).
+[aflplusplus](https://github.com/Mrmaxmeier/fuzzbench/blob/master/fuzzers/aflplusplus/fuzzer.py).
 
 ## Testing it out
 
@@ -227,7 +227,7 @@ successfully:
 
 ```shell
 export FUZZER_NAME=afl
-export BENCHMARK_NAME=libpng-1.2.56
+export BENCHMARK_NAME=libpng_libpng_read_fuzzer
 make build-$FUZZER_NAME-$BENCHMARK_NAME
 ```
 
@@ -297,7 +297,7 @@ fuzzer pull request and wait for the CI results.
 There can be unavoidable cases where your fuzzer cannot work with a particular
 benchmark. In those cases, you can add your fuzzer to the `unsupported_fuzzers`
 attribute of the benchmark's `benchmark.yaml` file. Check out an example
-[here](https://github.com/google/fuzzbench/blob/bd281252287ed8bdf6eef31fbd7ea268c1b17cc9/benchmarks/bloaty_fuzz_target/benchmark.yaml#L19).
+[here](https://github.com/Mrmaxmeier/fuzzbench/blob/bd281252287ed8bdf6eef31fbd7ea268c1b17cc9/benchmarks/bloaty_fuzz_target/benchmark.yaml#L19).
 
 ## Requesting an experiment
 
@@ -316,7 +316,7 @@ reports may not appear until a few hours after the experiment starts since every
 fuzzer-benchmark pair in the experiment must build in order for fuzzing to start.
 
 When comparing against the standard fuzzer set, include the
-[core fuzzers](https://github.com/google/fuzzbench/blob/master/experiment/core-fuzzers.yaml)
+[core fuzzers](https://github.com/Mrmaxmeier/fuzzbench/blob/master/experiment/core-fuzzers.yaml)
 listed in `experiment/core-fuzzers.yaml`.
 
 ## Submitting your integration

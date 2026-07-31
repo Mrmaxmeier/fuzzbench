@@ -21,7 +21,7 @@ This page explains how to set up your environment for using FuzzBench.
 Clone the FuzzBench repository to your machine by running the following command:
 
 ```bash
-git clone https://github.com/google/fuzzbench
+git clone https://github.com/Mrmaxmeier/fuzzbench
 cd fuzzbench
 ```
 

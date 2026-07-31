@@ -44,7 +44,7 @@ The process works like this:
 [integrates a fuzzer]({{ site.baseurl }}/getting-started/adding-a-new-fuzzer/)
 with FuzzBench.
 1. The integration is merged into the [
-FuzzBench repo](https://github.com/google/fuzzbench).
+FuzzBench repo](https://github.com/Mrmaxmeier/fuzzbench).
 1. You run a local experiment with the fuzzers and benchmarks you want to compare.
 1. FuzzBench generates a report comparing fuzzer performance on individual
 benchmarks and in aggregate.
@@ -59,7 +59,7 @@ FuzzBench and test it locally.
 You can view a
 [sample report](https://www.fuzzbench.com/reports/sample/index.html) and
 [periodically generated reports](https://www.fuzzbench.com/reports/index.html)
-from past FuzzBench experiments. The sample report uses 10 fuzzers against 24
+from past upstream FuzzBench experiments. The sample report uses 10 fuzzers against 24
 real-world benchmarks, with 20 trials each over 24 hours.
 
 When analyzing reports, we recommend:
@@ -69,10 +69,11 @@ When analyzing reports, we recommend:
 
 Please provide feedback on any inaccuracies and potential improvements (such as
 integration changes, new benchmarks, etc.) by opening a GitHub issue
-[here](https://github.com/google/fuzzbench/issues/new).
+[here](https://github.com/Mrmaxmeier/fuzzbench/issues/new).
 
 ## Contacts
 
-Join our [mailing list](https://groups.google.com/forum/#!forum/fuzzbench-users)
-for discussions and announcements, or send us a private email at
-[fuzzbench@google.com](mailto:fuzzbench@google.com).
+This fork is maintained at
+[github.com/Mrmaxmeier/fuzzbench](https://github.com/Mrmaxmeier/fuzzbench).
+The upstream mailing list is
+[fuzzbench-users](https://groups.google.com/forum/#!forum/fuzzbench-users).

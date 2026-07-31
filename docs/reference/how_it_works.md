@@ -29,7 +29,7 @@ site.baseurl}}/running-a-local-experiment/),
 `run_experiment.py` starts a Docker container called the dispatcher to run an
 experiment. In addition to referring to the container, "dispatcher" can also
 refer to the [script/process the container
-runs](https://github.com/google/fuzzbench/blob/master/experiment/dispatcher.py).
+runs](https://github.com/Mrmaxmeier/fuzzbench/blob/master/experiment/dispatcher.py).
 The dispatcher (script) doesn't actually do much on its own. It does some
 basic initialization like saving details about the experiment to the database
 and then starts four other major components - the builder, the scheduler, the
@@ -40,7 +40,7 @@ its unique role).
 ## Builder
 
 The
-[builder](https://github.com/google/fuzzbench/blob/master/experiment/build/)
+[builder](https://github.com/Mrmaxmeier/fuzzbench/blob/master/experiment/build/)
 produces a build for each fuzzer-benchmark
 pair needed by the experiment and does a coverage build for each benchmark.
 The builder uses Docker to build the images needed by the experiment. When the
@@ -72,10 +72,10 @@ The scheduler stops running after all trials finish running.
 Trial runners are Docker containers that fuzz benchmarks. They start by using the
 docker images that were produced by the [builder](/#Builder). Then, from within
 the container, they run
-[runner.py](https://github.com/google/fuzzbench/blob/master/experiment/runner.py)
+[runner.py](https://github.com/Mrmaxmeier/fuzzbench/blob/master/experiment/runner.py)
 which calls the `fuzz` function from the `fuzzer.py` file for the specified
 fuzzer
-([example](https://github.com/google/fuzzbench/blob/master/fuzzers/fairfuzz/fuzzer.py)).
+([example](https://github.com/Mrmaxmeier/fuzzbench/blob/master/fuzzers/fairfuzz/fuzzer.py)).
 The runner will also periodically archive the current `output_corpus` and sync
 it to the experiment filestore (this is sometimes referred to as a "corpus
 snapshot"). The runner terminates when it has run the `fuzz` function for the
@@ -86,7 +86,7 @@ site.baseurl}}/running-a-local-experiment/#experiment-configuration-file).
 ## Measurer
 
 The role of the
-[measurer](https://github.com/google/fuzzbench/blob/master/experiment/measurer/)
+[measurer](https://github.com/Mrmaxmeier/fuzzbench/blob/master/experiment/measurer/)
 is to take the output of the trial runners and make it usable for generating
 reports. To do this, the measurer downloads coverage builds for each benchmark
 and then continuously downloads corpus snapshots, measures their coverage, and

@@ -19,7 +19,7 @@ access them [here](https://www.fuzzbench.com/reports/index.html).
 
 ## Blog posts
 
-Announcement blog post:
+Historical announcement posts from the original FuzzBench service:
 
 [https://security.googleblog.com/2020/03/fuzzbench-fuzzer-benchmarking-as-service.html](https://security.googleblog.com/2020/03/fuzzbench-fuzzer-benchmarking-as-service.html)
 

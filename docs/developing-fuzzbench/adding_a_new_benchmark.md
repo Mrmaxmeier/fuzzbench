@@ -108,7 +108,7 @@ For example, if the project we are fuzzing is a JSON parsing library, our
 `LLVMFuzzerTestOneInput` could pass the data from the fuzzer to a function in
 the library that parses JSON.
 
-Example: [libxml2](https://github.com/google/fuzzbench/blob/master/benchmarks/libxml2-v2.9.2/target.cc).
+Example: [libxml2](https://github.com/Mrmaxmeier/fuzzbench/blob/master/benchmarks/libxml2_xml/target.cc).
 
 ### build.sh
 
@@ -149,14 +149,14 @@ cp -r seeds $OUT/
 cp $FUZZ_TARGET.dict $OUT/
 ```
 
-Example: [libxml2](https://github.com/google/fuzzbench/blob/master/benchmarks/libxml2-v2.9.2/build.sh).
+Example: [libxml2](https://github.com/Mrmaxmeier/fuzzbench/blob/master/benchmarks/libxml2_xml/build.sh).
 
 #### `seeds` directory (optional)
 
 This directory should contain a set of test input files for the fuzz target that
 provide good code coverage to start from. This should be copied to `$OUT/seeds`
 
-Example: [libpng-1.2.56](https://github.com/google/fuzzbench/blob/master/benchmarks/libpng-1.2.56/seeds).
+Example: [libpng_libpng_read_fuzzer](https://github.com/Mrmaxmeier/fuzzbench/blob/master/benchmarks/libpng_libpng_read_fuzzer/seeds).
 
 
 #### Dictionary file (optional)
@@ -187,7 +187,7 @@ COPY build.sh fuzz-target.dict $SRC/
 ADD seeds $SRC/seeds
 ```
 
-Example: [libxml2](https://github.com/google/fuzzbench/blob/master/benchmarks/libxml2-v2.9.2/Dockerfile).
+Example: [libxml2](https://github.com/Mrmaxmeier/fuzzbench/blob/master/benchmarks/libxml2_xml/Dockerfile).
 
 ### benchmark.yaml
 
@@ -199,7 +199,7 @@ fuzz_target: fuzz-target
 project: $PROJECT_NAME
 ```
 
-Example: [libxml2](https://github.com/google/fuzzbench/blob/master/benchmarks/libxml2-v2.9.2/benchmark.yaml).
+Example: [libxml2](https://github.com/Mrmaxmeier/fuzzbench/blob/master/benchmarks/libxml2_xml/benchmark.yaml).
 
 ## Testing it out
 
@@ -208,7 +208,7 @@ successfully with at least one fuzzer (e.g. afl):
 
 ```shell
 export FUZZER_NAME=afl
-export BENCHMARK_NAME=libpng-1.2.56
+export BENCHMARK_NAME=libpng_libpng_read_fuzzer
 
 make build-$FUZZER_NAME-$BENCHMARK_NAME
 

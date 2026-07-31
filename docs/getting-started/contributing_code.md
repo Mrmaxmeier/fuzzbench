@@ -43,5 +43,5 @@ separately:
 
 * `make format` - formats source code using `yapf`.
 * `make lint` - runs the linter checks.
-* `make typecheck` - runs type checker using `pytype`.
+* `make typecheck` - runs type checker using `mypy`.
 * `make licensecheck` - runs the license header checks.

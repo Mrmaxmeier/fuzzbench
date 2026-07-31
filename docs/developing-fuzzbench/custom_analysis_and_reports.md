@@ -24,7 +24,7 @@ fuzzers, visualize results, or determine statistical significance.
 We encourage researchers to look at the data from different points of view as
 well. We provide a library of alternative analysis, statistical tests and
 plotting options under the
-[`analysis/`](https://github.com/google/fuzzbench/tree/master/analysis)
+[`analysis/`](https://github.com/Mrmaxmeier/fuzzbench/tree/master/analysis)
 directory.
 
 We invite researchers to contribute their own scripts for various tests and
@@ -49,7 +49,7 @@ You can find the link to the raw data file at the bottom of each [previously
 published report](https://www.fuzzbench.com/reports/index.html).
 
 You can generate different types of reports (see available
-[templates](https://github.com/google/fuzzbench/tree/master/analysis/report_templates)).
+[templates](https://github.com/Mrmaxmeier/fuzzbench/tree/master/analysis/report_templates)).
 For example, to generate a more detailed report with more analysis results
 (i.e., multiple ranking methods and statistical tests), use the `--report_type
 experimental` flag. We also encourage you to add your own templates and report
@@ -65,7 +65,7 @@ PYTHONPATH=<fuzzbench_root> python3 analysis/generate_report.py --help
 
 Another way to do custom analysis is to use Jupyter / Colab notebooks. You can
 find some example notebooks
-[here](https://github.com/google/fuzzbench/tree/master/analysis/notebooks).
+[here](https://github.com/Mrmaxmeier/fuzzbench/tree/master/analysis/notebooks).
 
 _If you do some custom analysis that might be useful for others as well, please
 consider adding it to the analysis library!_

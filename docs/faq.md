@@ -71,28 +71,21 @@ to misunderstand configuration details that can have an impact on the results.
 If you can, please reach out to the authors to confirm your configuration looks
 good to them.
 
-## I'd like to get my fuzzer evaluated, but I don't want the results and/or code to be public yet. Can I use the FuzzBench service?
+## I'd like to get my fuzzer evaluated privately. Is there a hosted FuzzBench service?
 
-Probably yes. We run private experiments for this purpose.
-Please reach out to us at fuzzbench@google.com. If we agree to benchmark your
-fuzzer, please follow the guide on
+This fork is local-only: run experiments on your own machine with Docker (see
+[running a local experiment]({{ site.baseurl }}/running-a-local-experiment/running_a_local_experiment/)).
+There is no hosted private benchmarking service here.
+
+To integrate a fuzzer locally, follow
 [adding a new fuzzer]({{ site.baseurl }}/getting-started/adding-a-new-fuzzer/)
-on how to integrate your fuzzer with FuzzBench.
+and test with at least:
 
-You can ignore the sections on [Requesting an experiment]({{ site.baseurl }}/getting-started/adding-a-new-fuzzer/#requesting-an-experiment) and
-[Submitting your integration]({{ site.baseurl }}/getting-started/adding-a-new-fuzzer/#submitting-your-integration).
-Please test your fuzzer works with our benchmarks, we don't have CI to verify
-this for private experiments.
-Ideally, you should test all benchmarks using `make -j test-run-$FUZZER-all`.
-This takes too long on most machines so you should at least test a few of them:
 ```
-make test-run-$FUZZER-zlib_zlib_uncompress_fuzzer test-run-$FUZZER-libpng-1.2.56
+make test-run-$FUZZER-zlib_zlib_uncompress_fuzzer test-run-$FUZZER-libpng_libpng_read_fuzzer
 ```
 
-You should also run `make presubmit` to validate the fuzzer's name and
-integration code.
-When your fuzzer is ready, send us a patch file that applies cleanly to
-FuzzBench with `git apply <patch_file>`.
+Also run `make presubmit` to validate the fuzzer's name and integration code.
 
 ## How can you prevent researchers from optimizing their tools only for these benchmarks?
 
@@ -125,7 +118,7 @@ a new benchmark.
 
 ## I've found an issue with FuzzBench. What can I do?
 
-Please [file an issue on GitHub](https://github.com/google/fuzzbench/issues/new)
+Please [file an issue on GitHub](https://github.com/Mrmaxmeier/fuzzbench/issues/new)
 or send a pull request fixing the problem.
 
 ## How can I cite FuzzBench in my paper?

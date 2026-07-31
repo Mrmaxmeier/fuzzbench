@@ -13,15 +13,17 @@ FuzzBench provides:
 * A reporting library that produces reports with graphs and statistical tests
   to help you understand the significance of results.
 
+This repository is a slim, local-only fork focused on running experiments with
+Docker on your own machine.
+
 ## Run an experiment locally
 
-Run FuzzBench on your own machine using Docker. See the
-[guide to running a local experiment](
-https://google.github.io/fuzzbench/running-a-local-experiment/) for setup and
-configuration.
+See
+[docs/running-a-local-experiment/](docs/running-a-local-experiment/running_a_local_experiment.md)
+for setup and configuration.
 
-After integrating a fuzzer, follow the
-[getting started guide](https://google.github.io/fuzzbench/getting-started/)
+After integrating a fuzzer, follow
+[docs/getting-started/](docs/getting-started/getting_started.md)
 to build and test it, then run an experiment with `experiment/run_experiment.py`.
 
 Reports are written to the `report_filestore` path in your experiment config
@@ -32,25 +34,25 @@ Reports are written to the `report_filestore` path in your experiment config
 You can view a
 [sample report](https://www.fuzzbench.com/reports/sample/index.html) and
 [periodically generated reports](https://www.fuzzbench.com/reports/index.html)
-from past FuzzBench experiments. The sample report uses 10 fuzzers against 24
-real-world benchmarks, with 20 trials each over 24 hours.
+from past upstream FuzzBench experiments. The sample report uses 10 fuzzers
+against 24 real-world benchmarks, with 20 trials each over 24 hours.
 
 When analyzing reports, we recommend:
 * Checking the strengths and weaknesses of a fuzzer against various benchmarks.
 * Looking at aggregate results to understand the overall significance of the
   result.
 
-Please provide feedback on any inaccuracies and potential improvements (such as
-integration changes, new benchmarks, etc.) by opening a GitHub issue
-[here](https://github.com/google/fuzzbench/issues/new).
+Please provide feedback by opening a GitHub issue
+[here](https://github.com/Mrmaxmeier/fuzzbench/issues/new).
 
 ## Documentation
 
-Read our [detailed documentation](https://google.github.io/fuzzbench/) to learn
-how to use FuzzBench.
+See the [docs/](docs/) directory (or serve it with `make docs-serve`) for the
+full documentation set.
 
 ## Contacts
 
-Join our [mailing list](https://groups.google.com/forum/#!forum/fuzzbench-users)
-for discussions and announcements, or send us a private email at
-[fuzzbench@google.com](mailto:fuzzbench@google.com).
+This fork is maintained at
+[github.com/Mrmaxmeier/fuzzbench](https://github.com/Mrmaxmeier/fuzzbench).
+The upstream project mailing list is
+[fuzzbench-users](https://groups.google.com/forum/#!forum/fuzzbench-users).
