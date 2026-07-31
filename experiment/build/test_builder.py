@@ -14,12 +14,15 @@
 """Tests for builder.py."""
 
 import os
+import subprocess
 import sys
 from unittest import mock
 
 import pytest
 
 from experiment.build import builder
+from experiment.build import image_lock
+from experiment.build import recipe_hash
 from experiment.run_experiment import DEFAULT_CONCURRENT_BUILDS
 
 SRC_ROOT = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir)
@@ -87,6 +90,36 @@ def test_build_all_measurers(mocked_build_utils, mocked_fs, mocked_time,
         assert result == benchmarks
     else:
         assert not result
+
+
+@pytest.mark.parametrize('error', [
+    image_lock.StaleLockError('stale'),
+    image_lock.CorruptLockError('corrupt'),
+    recipe_hash.UnhashedParentError('unhashed'),
+])
+@mock.patch('experiment.build.local_build.build_coverage')
+def test_build_measurer_does_not_swallow_fatal_errors(mocked_build_coverage,
+                                                      error):
+    """Tests that a broken setup halts the experiment instead of dropping the
+    benchmark.
+
+    build_measurer turns a failure into False, which costs the experiment that
+    benchmark. That is the right answer for a flaky build and the wrong one for
+    a lock entry we cannot honour or a Dockerfile whose parent escapes the
+    recipe hash: retrying cannot fix either, and continuing would report a
+    quietly smaller experiment as a successful one.
+    """
+    mocked_build_coverage.side_effect = error
+    with pytest.raises(type(error)):
+        builder.build_measurer('benchmark')
+
+
+@mock.patch('experiment.build.local_build.build_coverage')
+def test_build_measurer_reports_ordinary_failure(mocked_build_coverage):
+    """Tests that an ordinary build failure is still just a dropped
+    benchmark."""
+    mocked_build_coverage.side_effect = subprocess.CalledProcessError(1, 'cmd')
+    assert builder.build_measurer('benchmark') is False
 
 
 @pytest.fixture

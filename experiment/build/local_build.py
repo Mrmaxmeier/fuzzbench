@@ -12,30 +12,54 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Module for building things on Google Cloud Build for use in trials."""
+"""Module for building images for use in trials.
+
+Builds go through the content-addressed resolver rather than through make. The
+generated makefile is still what a developer drives by hand, but its targets are
+phony, so it re-runs `docker build` for every image in a chain on every
+invocation and leaves caching entirely to docker's layer cache. That is fine
+interactively and useless for deciding whether an experiment can reuse an
+existing image, which is a question about identity rather than about layers.
+"""
 
 import os
-from typing import Tuple
+import threading
 
 from common import benchmark_utils
-from common import environment
 from common import experiment_utils
-from common import logs
+from common import fuzzer_utils
 from common import new_process
-from common import utils
+from experiment.build import docker_images
+from experiment.build import image_resolver
 
-logger = logs.Logger()  # pylint: disable=invalid-name
-
-
-def make(targets):
-    """Invoke |make| with |targets| and return the result."""
-    command = ['make', '-j'] + targets
-    return new_process.execute(command, cwd=utils.ROOT_DIR)
+_resolver = None  # pylint: disable=invalid-name
+_resolver_lock = threading.Lock()  # pylint: disable=invalid-name
 
 
-def build_base_images() -> Tuple[int, str]:
-    """Build base images locally."""
-    return make(['base-image', 'worker'])
+def get_resolver():
+    """Returns the process-wide image resolver.
+
+    One resolver is shared by every build in the process so that its memo is
+    too. The dispatcher builds fuzzer-benchmark pairs through a thread pool and
+    those pairs have parents in common -- most of them share base-image, and
+    every pair for one fuzzer shares that fuzzer's intermediate runner. Handing
+    each build its own resolver would rebuild those parents once per pair.
+    """
+    global _resolver  # pylint: disable=global-statement
+    with _resolver_lock:
+        if _resolver is None:
+            images = docker_images.get_images_to_build(
+                fuzzer_utils.get_fuzzer_names(),
+                benchmark_utils.get_all_benchmarks())
+            _resolver = image_resolver.Resolver(images)
+        return _resolver
+
+
+def build_base_images():
+    """Build base images locally. Raises if any of them cannot be built."""
+    resolver = get_resolver()
+    for name in ('base-image', 'worker'):
+        resolver.resolve(name)
 
 
 def get_shared_coverage_binaries_dir():
@@ -53,36 +77,34 @@ def make_shared_coverage_binaries_dir():
 
 
 def build_coverage(benchmark):
-    """Build (locally) coverage image for benchmark."""
-    image_name = f'build-coverage-{benchmark}'
-    result = make([image_name])
-    if result.retcode:
-        return result
+    """Build (locally) coverage image for benchmark. Returns the resolved
+    image."""
+    resolved = get_resolver().resolve(f'coverage-{benchmark}-builder')
     make_shared_coverage_binaries_dir()
-    copy_coverage_binaries(benchmark)
-    return result
+    copy_coverage_binaries(benchmark, resolved)
+    return resolved
 
 
-def copy_coverage_binaries(benchmark):
+def copy_coverage_binaries(benchmark, resolved):
     """Copy coverage binaries in a local experiment."""
     shared_coverage_binaries_dir = get_shared_coverage_binaries_dir()
     mount_arg = f'{shared_coverage_binaries_dir}:{shared_coverage_binaries_dir}'
-    builder_image_url = benchmark_utils.get_builder_image_url(
-        benchmark, 'coverage', environment.get('DOCKER_REGISTRY'))
     coverage_build_archive = f'coverage-build-{benchmark}.tar.gz'
     coverage_build_archive_shared_dir_path = os.path.join(
         shared_coverage_binaries_dir, coverage_build_archive)
     command = (
         '(cd /out; '
         f'tar -czvf {coverage_build_archive_shared_dir_path} * /src /work)')
+    # Run the digest rather than the builder's mutable name. The binaries the
+    # measurer scores coverage against have to come from the same image the
+    # fuzz build descends from, and a name would only promise the most recent
+    # build of something with a matching label.
     return new_process.execute([
-        'docker', 'run', '-v', mount_arg, builder_image_url, '/bin/bash', '-c',
+        'docker', 'run', '-v', mount_arg, resolved.digest, '/bin/bash', '-c',
         command
     ])
 
 
-def build_fuzzer_benchmark(fuzzer: str, benchmark: str) -> bool:
-    """Builds |benchmark| for |fuzzer|."""
-    image_name = f'build-{fuzzer}-{benchmark}'
-    result = make([image_name])
-    return result.retcode == 0
+def build_fuzzer_benchmark(fuzzer: str, benchmark: str):
+    """Builds |benchmark| for |fuzzer|. Returns the resolved runner image."""
+    return get_resolver().resolve(f'{fuzzer}-{benchmark}-runner')

@@ -33,12 +33,19 @@ from common import utils
 from common import logs
 
 from experiment.build import build_utils
+from experiment.build import image_lock
 from experiment.build import local_build as buildlib
+from experiment.build import recipe_hash
 from experiment import run_experiment
 
 # Build attempts and wait interval.
 NUM_BUILD_ATTEMPTS = 3
 BUILD_FAIL_WAIT = 5 * 60
+
+# Failures that no amount of retrying will fix, and that must not be turned
+# into a silently smaller experiment.
+FATAL_BUILD_ERRORS = (image_lock.StaleLockError, image_lock.CorruptLockError,
+                      recipe_hash.UnhashedParentError)
 
 BENCHMARKS_DIR = os.path.join(utils.ROOT_DIR, 'benchmarks')
 
@@ -84,9 +91,10 @@ def get_fuzzer_benchmark_pairs(fuzzers, benchmarks):
     ]
 
 
-def build_base_images() -> Tuple[int, str]:
-    """Build base images."""
-    return buildlib.build_base_images()
+def build_base_images():
+    """Build base images. Raises if any of them cannot be built, which halts
+    the experiment rather than letting it run on stale images."""
+    buildlib.build_base_images()
 
 
 def build_measurer(benchmark: str) -> bool:
@@ -96,6 +104,13 @@ def build_measurer(benchmark: str) -> bool:
         buildlib.build_coverage(benchmark)
         logs.info('Done building measurer for benchmark: %s.', benchmark)
         return True
+    except FATAL_BUILD_ERRORS:  # pylint: disable=try-except-raise
+        # A damaged lock entry or an unhashed parent is a deterministic problem
+        # with the setup, not a flaky build. Retrying it three times with a
+        # five minute sleep between attempts would only bury the message, and
+        # dropping the benchmark would quietly shrink the experiment. Caught
+        # ahead of the broad handler below purely to escape it.
+        raise
     except Exception:  # pylint: disable=broad-except
         logger.error('Failed to build measurer for %s.', benchmark)
         return False
@@ -130,8 +145,7 @@ def split_successes_and_failures(inputs: List,
     return successes, failures
 
 
-def retry_build_loop(build_func: Callable,
-                     inputs: List[Tuple]) -> List:
+def retry_build_loop(build_func: Callable, inputs: List[Tuple]) -> List:
     """Calls |build_func| in parallel on |inputs|. Repeat on failures up to
     |NUM_BUILD_ATTEMPTS| times. Returns the list of inputs that |build_func| was
     called successfully on."""

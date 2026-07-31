@@ -54,6 +54,21 @@ class Trial(Base):
     # Group number used to pick a trial's corpus in random corpus fuzzing.
     trial_group_num = Column(Integer, nullable=True)
 
+    # Identity of the runner image this trial actually executed. The fuzzer and
+    # benchmark columns above are names, and a name only says which recipe was
+    # used, not what the recipe produced on the day it ran.
+    runner_image_digest = Column(String, nullable=True)
+
+    # Identity of the benchmark's project-builder image, which is what pins
+    # "which libpng" this trial measured. This, rather than the runner digest,
+    # is the right grain for analysis: comparing fuzzers on a benchmark means
+    # grouping across runner images that differ by construction, but every
+    # trial in a fair comparison must share this one. Benchmarks pin their own
+    # source by commit, but not the dependencies they build against -- curl
+    # fetches whatever ossfuzzdeps.sh resolves to that day -- so two builds of
+    # the same benchmark months apart are not interchangeable.
+    benchmark_digest = Column(String, nullable=True)
+
     # Every trial has snapshots which is basically the saved state of that trial
     # at a given time. The snapshots field here and the trial field on Snapshot,
     # declare this relationship exists to SQLAlchemy so that it is easy to get

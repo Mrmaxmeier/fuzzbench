@@ -31,7 +31,9 @@ from common import logs
 from common import yaml_utils
 from database import models
 from database import utils as db_utils
+from experiment.build import build_utils
 from experiment.build import builder
+from experiment.build import local_build
 from experiment.measurer import measure_manager
 from experiment import reporter
 from experiment import scheduler
@@ -117,13 +119,30 @@ def build_images_for_trials(fuzzers: List[str], benchmarks: List[str],
     benchmarks = builder.build_all_measurers(benchmarks)
     build_successes = builder.build_all_fuzzer_benchmarks(fuzzers, benchmarks)
     experiment_name = experiment_utils.get_experiment_name()
+
+    resolved_images = local_build.get_resolver().resolved_images()
+    build_utils.store_resolved_images(resolved_images)
+
     trials = []
     for fuzzer, benchmark in build_successes:
+        runner_digest = resolved_images[f'{fuzzer}-{benchmark}-runner'].digest
+        # The measurer and the fuzz build are built in separate phases, and
+        # each used to resolve the benchmark image by a mutable name, so a
+        # rebuild between the two phases could pair coverage binaries from one
+        # source snapshot with a fuzz target from another. Both phases now
+        # resolve through one memoized resolver, so they reach the same
+        # project-builder entry by construction and this digest describes both.
+        benchmark_digest = resolved_images[
+            f'{benchmark}-project-builder'].digest
+
         fuzzer_benchmark_trials = [
             models.Trial(fuzzer=fuzzer,
                          experiment=experiment_name,
                          benchmark=benchmark,
-                         trial_group_num=trial) for trial in range(num_trials)
+                         trial_group_num=trial,
+                         runner_image_digest=runner_digest,
+                         benchmark_digest=benchmark_digest)
+            for trial in range(num_trials)
         ]
         trials.extend(fuzzer_benchmark_trials)
     return trials

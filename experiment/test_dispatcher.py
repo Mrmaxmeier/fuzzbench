@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for dispatcher.py."""
+import hashlib
 import itertools
 import os
 from unittest import mock
@@ -31,6 +32,33 @@ TEST_DATA_PATH = os.path.join(os.path.dirname(__file__), 'test_data')
 def get_test_data_path(*subpaths):
     """Returns the path of |subpaths| relative to TEST_DATA_PATH."""
     return os.path.join(TEST_DATA_PATH, *subpaths)
+
+
+class FakeResolvedImages(dict):
+    """Hands back a stable synthetic digest for any image name asked for.
+
+    The dispatcher tests use fuzzers and benchmarks that have no Dockerfiles,
+    so the real resolver has nothing to resolve for them.
+    """
+
+    def __missing__(self, name):
+        digest = 'sha256:' + hashlib.sha256(name.encode()).hexdigest()
+        self[name] = mock.Mock(digest=digest,
+                               recipe_hash=digest[7:39],
+                               reference=f'localhost/fuzzbench/{name}')
+        return self[name]
+
+
+@pytest.fixture(autouse=True)
+def resolved_images():
+    """Stands in for the image resolver and the manifest it writes out."""
+    images = FakeResolvedImages()
+    resolver = mock.Mock()
+    resolver.resolved_images.return_value = images
+    with mock.patch('experiment.build.local_build.get_resolver',
+                    return_value=resolver):
+        with mock.patch('experiment.build.build_utils.store_resolved_images'):
+            yield images
 
 
 def mock_split_successes_and_failures(inputs, results):
@@ -177,8 +205,8 @@ def test_build_images_for_trials_fuzzer_fail(_, dispatcher_experiment):
                     return_value=benchmarks):
         with mock.patch('experiment.build.builder.build_all_fuzzer_benchmarks',
                         side_effect=mocked_build_all_fuzzer_benchmarks):
-            trials = dispatcher.build_images_for_trials(
-                fuzzers, benchmarks, num_trials)
+            trials = dispatcher.build_images_for_trials(fuzzers, benchmarks,
+                                                        num_trials)
 
     trial_fuzzer_benchmarks = [
         (trial.fuzzer, trial.benchmark) for trial in trials

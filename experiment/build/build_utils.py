@@ -15,7 +15,10 @@
 
 import tempfile
 
+import yaml
+
 from common import experiment_path as exp_path
+from common import experiment_utils
 from common import filestore_utils
 
 
@@ -41,3 +44,30 @@ def get_coverage_binaries_dir():
 def get_build_logs_dir():
     """Return build logs directory."""
     return exp_path.path('build-logs')
+
+
+def store_resolved_images(resolved_images):
+    """Records the digest every image in the experiment resolved to.
+
+    The per-trial columns capture the two digests analysis needs. This is the
+    full manifest, including the builders and the coverage images that no trial
+    points at, so that an experiment's results can be traced back to every
+    image involved rather than only the ones a trial ran.
+    """
+    manifest = {
+        name: {
+            'recipe_hash': resolved.recipe_hash,
+            'digest': resolved.digest,
+            'reference': resolved.reference,
+        } for name, resolved in sorted(resolved_images.items())
+    }
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml') as tmp:
+        yaml.dump(manifest, tmp, default_flow_style=False)
+        tmp.flush()
+        # Alongside the experiment's own config, since it is the same kind of
+        # record: what this experiment was, as opposed to what it measured.
+        filestore_utils.cp(
+            tmp.name,
+            exp_path.filestore(
+                exp_path.path(experiment_utils.CONFIG_DIR, 'images.yaml')))
