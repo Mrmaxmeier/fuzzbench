@@ -423,11 +423,11 @@
             <code>
             # Check out the right commit. <br>
             git checkout {{ experiment.git_hash }} <br>
-            # Download the internal config file. <br>
-            curl https://storage.googleapis.com/{{ experiment.experiment_filestore}}/{{ experiment.name }}/{{ experiment_config_relative_path }} >  /tmp/experiment-config.yaml<br>
+            # Point at the experiment's saved internal config. <br>
+            CONFIG={{ experiment.experiment_filestore }}/{{ experiment.name }}/{{ experiment_config_relative_path }} <br>
             make install-dependencies <br>
-            # Launch the experiment using paramters from the internal config file. <br>
-            PYTHONPATH=. python experiment/reproduce_experiment.py -c /tmp/experiment-config.yaml -e &lt;new_experiment_name&gt;
+            # Launch the experiment using parameters from the internal config file. <br>
+            PYTHONPATH=. python experiment/reproduce_experiment.py -c $CONFIG -e &lt;new_experiment_name&gt;
             </code>
 
             {% endif %}

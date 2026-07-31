@@ -277,7 +277,6 @@ def start_experiment(  # pylint: disable=too-many-arguments
         description: Optional[str] = None,
         no_seeds: bool = False,
         no_dictionaries: bool = False,
-        oss_fuzz_corpus: bool = False,
         allow_uncommitted_changes: bool = False,
         concurrent_builds: Optional[int] = DEFAULT_CONCURRENT_BUILDS,
         measurers_cpus: Optional[int] = None,
@@ -298,7 +297,6 @@ def start_experiment(  # pylint: disable=too-many-arguments
     config['git_hash'] = get_git_hash(allow_uncommitted_changes)
     config['no_seeds'] = no_seeds
     config['no_dictionaries'] = no_dictionaries
-    config['oss_fuzz_corpus'] = oss_fuzz_corpus
     config['description'] = description
     config['concurrent_builds'] = concurrent_builds
     config['measurers_cpus'] = measurers_cpus
@@ -333,16 +331,6 @@ def start_dispatcher(config: Dict, config_dir: str):
         dispatcher.start()
 
 
-def add_oss_fuzz_corpus(benchmark, oss_fuzz_corpora_dir):  # pylint: disable=unused-argument
-    """Add latest public corpus from OSS-Fuzz as the seed corpus for various
-    fuzz targets."""
-    # OSS-Fuzz corpora are published on GCS backup buckets. Local-only filestore
-    # no longer supports gsutil; HTTPS download is not implemented yet.
-    raise ValidationError(
-        '--oss-fuzz-corpus is no longer supported: GCS backup URLs require '
-        'gsutil, pending HTTPS download support.')
-
-
 def copy_resources_to_filestore(config_dir: str, config: Dict):
     """Copy resources the dispatcher will need for the experiment to the
     experiment_filestore."""
@@ -371,14 +359,6 @@ def copy_resources_to_filestore(config_dir: str, config: Dict):
     # Send config files.
     destination = os.path.join(base_destination, 'config')
     filestore_utils.rsync(config_dir, destination, parallel=True)
-
-    # If |oss_fuzz_corpus| flag is set, copy latest corpora from each benchmark
-    # (if available) in our filestore bucket.
-    if config['oss_fuzz_corpus']:
-        oss_fuzz_corpora_dir = (
-            experiment_utils.get_oss_fuzz_corpora_filestore_path())
-        for benchmark in config['benchmarks']:
-            add_oss_fuzz_corpus(benchmark, oss_fuzz_corpora_dir)
 
     if config['custom_seed_corpus_dir']:
         for benchmark in config['benchmarks']:
@@ -578,15 +558,6 @@ def run_experiment_main(args=None):
                         required=False,
                         default=False,
                         action='store_true')
-    parser.add_argument(
-        '-o',
-        '--oss-fuzz-corpus',
-        help=('Should trials be conducted with OSS-Fuzz corpus (if available). '
-              'Unsupported: GCS backup URLs require gsutil, pending HTTPS '
-              'download support.'),
-        required=False,
-        default=False,
-        action='store_true')
     args = parser.parse_args(args)
     fuzzers = args.fuzzers or all_fuzzers
 
@@ -616,17 +587,10 @@ def run_experiment_main(args=None):
                      f'({measurers_cpus}) is greater than the available cpu '
                      f'cores (os.cpu_count()).')
 
-    if args.oss_fuzz_corpus:
-        parser.error('--oss-fuzz-corpus is no longer supported: GCS backup '
-                     'URLs require gsutil, pending HTTPS download support.')
-
     if args.custom_seed_corpus_dir:
         if args.no_seeds:
             parser.error('Cannot enable options "custom_seed_corpus_dir" and '
                          '"no_seeds" at the same time')
-        if args.oss_fuzz_corpus:
-            parser.error('Cannot enable options "custom_seed_corpus_dir" and '
-                         '"oss_fuzz_corpus" at the same time')
 
     if benchmark_utils.are_benchmarks_mixed(args.benchmarks):
         benchmark_types = ';'.join(
@@ -643,7 +607,6 @@ def run_experiment_main(args=None):
                      description=args.description,
                      no_seeds=args.no_seeds,
                      no_dictionaries=args.no_dictionaries,
-                     oss_fuzz_corpus=args.oss_fuzz_corpus,
                      allow_uncommitted_changes=args.allow_uncommitted_changes,
                      concurrent_builds=concurrent_builds,
                      measurers_cpus=measurers_cpus,

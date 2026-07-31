@@ -36,7 +36,6 @@ docker run \
 -e SNAPSHOT_PERIOD={{snapshot_period}} \
 -e NO_SEEDS={{no_seeds}} \
 -e NO_DICTIONARIES={{no_dictionaries}} \
--e OSS_FUZZ_CORPUS={{oss_fuzz_corpus}} \
 -e CUSTOM_SEED_CORPUS_DIR={{custom_seed_corpus_dir}} \
 -e DOCKER_REGISTRY={{docker_registry}} \
 -e EXPERIMENT_FILESTORE={{experiment_filestore}} -v {{experiment_filestore}}:{{experiment_filestore}} \

@@ -194,7 +194,6 @@ def test_copy_resources_to_filestore(tmp_path):
         'experiment_filestore': '/tmp/filestore-bucket',
         'experiment': 'experiment',
         'benchmarks': ['libxslt_xpath'],
-        'oss_fuzz_corpus': False,
         'custom_seed_corpus_dir': None,
     }
     try:
@@ -212,21 +211,3 @@ def test_copy_resources_to_filestore(tmp_path):
                     parallel=True)
     finally:
         os.chdir(cwd)
-
-
-def test_add_oss_fuzz_corpus_unsupported():
-    """Tests that add_oss_fuzz_corpus rejects GCS backup URLs."""
-    with pytest.raises(run_experiment.ValidationError) as exception:
-        run_experiment.add_oss_fuzz_corpus('libxslt_xpath', '/corpora')
-    assert 'oss-fuzz-corpus is no longer supported' in str(exception.value)
-
-
-def test_oss_fuzz_corpus_flag_unsupported():
-    """Tests that --oss-fuzz-corpus fails validation early."""
-    config_path = os.path.join(os.path.dirname(__file__), 'test_data',
-                               'local-experiment-config.yaml')
-    with pytest.raises(SystemExit):
-        run_experiment.run_experiment_main([
-            '-e', 'test', '-c', config_path, '-b', 'libpng-1.2.56', '-f', 'afl',
-            '-o'
-        ])

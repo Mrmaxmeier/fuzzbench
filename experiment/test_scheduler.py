@@ -102,7 +102,6 @@ docker run \\
 -e SNAPSHOT_PERIOD=900 \\
 -e NO_SEEDS=False \\
 -e NO_DICTIONARIES=False \\
--e OSS_FUZZ_CORPUS=False \\
 -e CUSTOM_SEED_CORPUS_DIR=None \\
 -e DOCKER_REGISTRY=localhost/fuzzbench \\
 -e EXPERIMENT_FILESTORE=/tmp/experiment-data -v /tmp/experiment-data:/tmp/experiment-data \\

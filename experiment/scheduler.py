@@ -367,7 +367,6 @@ def render_startup_script_template(  # pylint: disable=too-many-arguments
         'docker_registry': experiment_config['docker_registry'],
         'no_seeds': experiment_config['no_seeds'],
         'no_dictionaries': experiment_config['no_dictionaries'],
-        'oss_fuzz_corpus': experiment_config['oss_fuzz_corpus'],
         'num_cpu_cores': experiment_config['runner_num_cpu_cores'],
         'private': experiment_config['private'],
         'cpuset': cpuset,
