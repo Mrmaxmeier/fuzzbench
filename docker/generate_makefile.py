@@ -11,7 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Simple generator for local Makefile rules."""
+"""Simple generator for local Makefile rules.
+
+These targets are for interactive developer use (`make build-*`, `make run-*`).
+They tag images with mutable names and rely on Docker's layer cache. Experiment
+builds go through experiment.build.local_build / image_resolver instead, which
+address images by recipe hash and digest. Do not drive experiments via make.
+"""
 
 import os
 import sys

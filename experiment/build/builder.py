@@ -233,6 +233,8 @@ def main():
     os.environ['CONCURRENT_BUILDS'] = os.getenv('CONCURRENT_BUILDS',
                                                 str(args.num_concurrent_builds))
 
+    buildlib.init_resolver(args.fuzzers, args.benchmarks)
+    build_base_images()
     build_all_fuzzer_benchmarks(args.fuzzers, args.benchmarks)
 
     return 0

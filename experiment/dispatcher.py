@@ -110,6 +110,11 @@ def build_images_for_trials(fuzzers: List[str], benchmarks: List[str],
     """Builds the images needed to run |experiment| and returns a list of trials
     that can be run for experiment. This is the number of trials specified in
     experiment times each pair of fuzzer+benchmark that builds successfully."""
+    # Scope the resolver to this experiment's fuzzer × benchmark set before any
+    # builds run, so shared parents are memoized without paying for the full
+    # matrix.
+    local_build.init_resolver(fuzzers, benchmarks)
+
     # This call will raise an exception if the images can't be built which will
     # halt the experiment.
     builder.build_base_images()

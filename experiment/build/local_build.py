@@ -15,25 +15,38 @@
 """Module for building images for use in trials.
 
 Builds go through the content-addressed resolver rather than through make. The
-generated makefile is still what a developer drives by hand, but its targets are
-phony, so it re-runs `docker build` for every image in a chain on every
-invocation and leaves caching entirely to docker's layer cache. That is fine
-interactively and useless for deciding whether an experiment can reuse an
-existing image, which is a question about identity rather than about layers.
+generated makefile is still what a developer drives by hand (`make run-*`,
+`make build-*`); its targets are phony, so it re-runs `docker build` for every
+image in a chain on every invocation and leaves caching entirely to docker's
+layer cache. That is fine interactively and useless for deciding whether an
+experiment can reuse an existing image, which is a question about identity
+rather than about layers. Experiment builds must use this module's resolver.
 """
 
 import os
 import threading
+from typing import List
 
-from common import benchmark_utils
 from common import experiment_utils
-from common import fuzzer_utils
 from common import new_process
 from experiment.build import docker_images
 from experiment.build import image_resolver
 
 _resolver = None  # pylint: disable=invalid-name
 _resolver_lock = threading.Lock()  # pylint: disable=invalid-name
+
+
+def init_resolver(fuzzers: List[str], benchmarks: List[str]):
+    """Create the process-wide image resolver for |fuzzers| × |benchmarks|.
+
+    Call this once before any build so the resolver graph covers only the
+    experiment's images (plus shared parents like base-image), not the full
+    fuzzer × benchmark matrix.
+    """
+    global _resolver  # pylint: disable=global-statement
+    with _resolver_lock:
+        images = docker_images.get_images_to_build(fuzzers, benchmarks)
+        _resolver = image_resolver.Resolver(images)
 
 
 def get_resolver():
@@ -44,22 +57,27 @@ def get_resolver():
     those pairs have parents in common -- most of them share base-image, and
     every pair for one fuzzer shares that fuzzer's intermediate runner. Handing
     each build its own resolver would rebuild those parents once per pair.
+
+    Raises RuntimeError if |init_resolver| has not been called.
     """
-    global _resolver  # pylint: disable=global-statement
     with _resolver_lock:
         if _resolver is None:
-            images = docker_images.get_images_to_build(
-                fuzzer_utils.get_fuzzer_names(),
-                benchmark_utils.get_all_benchmarks())
-            _resolver = image_resolver.Resolver(images)
+            raise RuntimeError(
+                'local_build.init_resolver(fuzzers, benchmarks) must be '
+                'called before building images.')
         return _resolver
+
+
+def reset_resolver():
+    """Clear the process-wide resolver. Intended for tests."""
+    global _resolver  # pylint: disable=global-statement
+    with _resolver_lock:
+        _resolver = None
 
 
 def build_base_images():
     """Build base images locally. Raises if any of them cannot be built."""
-    resolver = get_resolver()
-    for name in ('base-image', 'worker'):
-        resolver.resolve(name)
+    get_resolver().resolve('base-image')
 
 
 def get_shared_coverage_binaries_dir():

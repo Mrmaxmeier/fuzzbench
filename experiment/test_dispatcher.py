@@ -55,10 +55,12 @@ def resolved_images():
     images = FakeResolvedImages()
     resolver = mock.Mock()
     resolver.resolved_images.return_value = images
-    with mock.patch('experiment.build.local_build.get_resolver',
-                    return_value=resolver):
-        with mock.patch('experiment.build.build_utils.store_resolved_images'):
-            yield images
+    with mock.patch('experiment.build.local_build.init_resolver'):
+        with mock.patch('experiment.build.local_build.get_resolver',
+                        return_value=resolver):
+            with mock.patch(
+                    'experiment.build.build_utils.store_resolved_images'):
+                yield images
 
 
 def mock_split_successes_and_failures(inputs, results):
