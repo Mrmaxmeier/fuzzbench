@@ -300,3 +300,83 @@ make it work across multiple blades -> SLURM?
     - the sif tested here was built before the fuzzer cull, with the fixed
       sources bind-mounted over /src. rebuild it from a current runner image
       before trusting a clean measurement.
+
+saturated corpora per benchmark -> corpus_store/
+
+  want: a corpus per benchmark that is already at the plateau, so an
+  experiment can start from saturation instead of spending its budget
+  rediscovering the same edges. feed it new inputs over time, keep it
+  minimized. not in git -- it is generated data that only grows.
+
+  store layout is deliberately the one --custom-seed-corpus-dir already
+  consumes ({store}/{benchmark}/units), so there is no packaging step between
+  growing a corpus and seeding an experiment with it. verified against
+  run_experiment.validate_custom_seed_corpus directly. bookkeeping (.meta,
+  .work, .crashes) sits beside the benchmark dirs, never inside one, or it
+  would be handed to a fuzzer as an input.
+
+  units are named by sha1 of contents, which is also how libfuzzer names what
+  it writes -- so units come back from a campaign already correctly named,
+  exact duplicates collapse on import, and a unit keeps one identity across
+  every round it survives.
+
+  the thing that decides what to keep must be a *fuzzer's* build, not the
+  coverage build. the coverage image is compiled -fprofile-instr-generate for
+  llvm-cov and carries no sancov, so libfuzzer's -merge=1 sees zero features
+  in it. measured: 12 inputs -> 0 kept through the coverage binary, 12 -> 6
+  through the libfuzzer runner. run_coverage.py gets away with using the
+  coverage binary because it only wants the .profraw side effect, never the
+  merge's verdict. so: minimize against libfuzzer (richest feature set of the
+  engines here, so it over-keeps relative to the others, which is the safe
+  direction for a seed corpus) and record the image digest that did it.
+
+  every round is a full distill from empty rather than a merge into the
+  existing corpus. libfuzzer's merge only ever *adds*, so merging in place
+  makes the store monotone -- a unit accepted in round one is never
+  reconsidered when a smaller input covering the same features shows up in
+  round five. the cost is real and so is the payoff: round 2 went 345 -> 389
+  units while total bytes went 45560 -> 36258. more units, less corpus,
+  because the re-distill swapped large units for smaller ones covering the
+  same features.
+
+  tried it: zlib_zlib_uncompress_fuzzer, libfuzzer.
+
+    op         units   bytes   feat  edges
+    seed           2    3478     36     35
+    campaign     345   45560   1077    357
+    campaign     389   36258   1105    358
+    campaign     405   35969   1113    358
+    campaign     435   37073   1133    358
+
+  edges saturate after the first 60s round and then do not move. features
+  keep creeping because libfuzzer counts value-profile features too, which
+  are far finer-grained than edges -- so "features still rising" is not
+  evidence the corpus is still learning anything a coverage report would
+  show. edges are the signal to watch for saturation; features are not.
+
+  the seed corpus zlib ships is 77 files of its own source tree (CMakeLists,
+  adler32.c, .o files). none of them are zlib streams, so uncompress() bails
+  on nearly all of them and they distill to 2 units. worth knowing before
+  reading anything into a benchmark's shipped seeds.
+
+  containers run --user $uid:$gid. everything they write lands in the store,
+  and a store of root-owned units is one you cannot curate. same reason the
+  apptainer work cared about ownership.
+
+  loose ends:
+    - no lock around commit. two invocations on the same benchmark will
+      interleave; hit this by accident running a verification round while a
+      4-round campaign was still going. each commit is a rename so the store
+      stays consistent, but the later writer silently loses the earlier
+      one's finds. needs a per-benchmark lockfile before this is run from
+      cron or across machines.
+    - only libfuzzer exercised. the campaign path goes through the fuzzer's
+      own fuzz() entry point, so any engine in fuzzers/ should work, but
+      untested. afl-family output layouts are the thing to check.
+    - a campaign is bounded by `timeout` as the container's pid 1 rather
+      than by asking the engine to stop. correct for engines that take no
+      deadline, but it means the last chunk of a fork-mode run's finds can
+      be lost. fine while rounds are cheap, less fine at 24h/round.
+    - nothing decides when a benchmark is *done*. the edges column is the
+      obvious stopping rule (n rounds with no new edges) but it is not
+      automated -- you still eyeball `status -v`.
