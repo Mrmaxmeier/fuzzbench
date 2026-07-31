@@ -179,6 +179,7 @@ def lint(_: List[Path]) -> bool:
     to_check = [
         'analysis',
         'common',
+        'corpus_store',
         'database',
         'docker',
         'experiment',
