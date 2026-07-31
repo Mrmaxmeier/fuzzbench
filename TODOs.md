@@ -43,6 +43,111 @@ make job inputs fully content-addressed? -> all images: base, builders, fuzzers,
   digests. need atomic first-writer-wins on the recipe->digest mapping, else
   experiments quietly diverge. matters more once builds are distributed.
 
+  --- built. it works end to end. ---
+
+  experiment/build/{recipe_hash,image_lock,image_resolver}.py. the resolver
+  replaces make on the experiment path; generated.mk stays for `make run-*`
+  and friends, which are the only things that still read a mutable tag.
+
+  build args carry the parent's immutable {registry}/{tag}:{recipe_hash};
+  the hash payload carries the parent's *digest*. both are needed:
+  buildkit rejects a bare digest in FROM (parses sha256:... as a repo name),
+  but `docker run <digest>` is fine. so tags at build time, digests for
+  identity and for launching.
+
+  the guard that matters is recipe_hash.check_parents_are_hashed: parse the
+  Dockerfile's FROMs, expand args, and refuse anything that is neither a
+  resolved image nor pinned by @sha256. ran it over all 1685 images and it
+  found two real holes:
+    - base-image was FROM ubuntu:focal, a rolling tag, and it is the root of
+      nearly the whole tree. now pinned by digest like the benchmarks were.
+    - benchmark-runner/Dockerfile composed both parents from
+      $registry/$fuzzer/$benchmark inside the Dockerfile, so neither parent's
+      identity could enter the hash. now passed in as builder_image /
+      parent_image.
+  keep this test (test_recipe_hash.py); it is the regression guard for the
+  whole scheme.
+
+  context hashing is whole-context, memoized, .dockerignore-aware. 0.18s cold
+  for the repo. narrowing it to what the Dockerfile COPYs is the under-hashing
+  direction, and unnecessary: a source edit re-keys the recipe, but docker's
+  layer cache still hits, so the rebuild lands on the *same digest*. verified
+  in practice -- edited the repo, runner rebuilt, digest unchanged. over-
+  hashing costs a build invocation, not an identity.
+
+  nice fallout: the per-fuzzer intermediate runner is byte-identical across
+  all 29 benchmarks, so it collapses 29 builds -> 1 (319 -> 11 over the
+  matrix). it is literally the same digest as base-image for libfuzzer.
+
+  also fixes a real correctness hole nobody had noticed: build_all_measurers
+  and build_all_fuzzer_benchmarks each resolved the benchmark image by name,
+  in separate phases, so a rebuild in between could pair coverage binaries
+  from one source snapshot with a fuzz target from another. one memoized
+  resolver makes that impossible by construction.
+
+  lock lives at {experiment_filestore}/image-lock/, one file per key,
+  published with link() -> first-writer-wins, loser adopts the winner's
+  digest. sibling of the experiment dirs, not inside one, because the whole
+  point is sharing across experiments.
+
+  stale lock (entry exists, image does not) raises rather than rebuilding.
+  rebuilding would hand out a different digest and silently contradict what
+  past experiments recorded. `--allow-stale-lock` opts out and takes the new
+  identity. this is the operational face of image retention == data retention.
+
+  trials record runner_image_digest + benchmark_digest. benchmark_digest is
+  the project-builder's, not the runner's: analysis groups per benchmark
+  *across* fuzzers, where runner digests differ by construction, so the
+  project-builder is the right grain. analysis/data_utils.validate_data now
+  refuses to merge experiments whose benchmark digests disagree; a null
+  digest (pre-lock data) warns instead.
+
+  full manifest also written to {experiment}/config/images.yaml.
+
+  `python3 -m experiment.build.image_resolver -f X -b Y --dry-run` reports
+  cached/build/stale/unknown. unknown is honest, not a gap: a child's key
+  covers its parent's digest, which does not exist until the parent is built.
+
+  --- unrelated pre-existing bug found while smoke testing. fixed. ---
+
+  measurement was stuck on master: zero snapshots recorded for the whole
+  experiment. confirmed not mine by running the identical experiment from a
+  clean HEAD worktree -- same 21 profraw errors, same 0 measured cycles, same
+  empty snapshot table.
+
+  cause: b7aee44e. it made do_coverage_run return early on an empty
+  new_units_dir to stop libfuzzer's guaranteed-nonzero merge exit from logging
+  "Coverage run failed." on quiet cycles. right diagnosis, wrong lever.
+
+  the run is not optional. the binary writes its .profraw when the process
+  exits, whatever the merge did -- verified directly: empty input dir, exit
+  code 1, and still an 8328-byte profraw. that side effect is load-bearing:
+
+    no profraw -> generate_coverage_information returns early
+               -> no cov_summary_file
+               -> measure_snapshot_coverage returns None
+               -> snapshot never saved
+               -> _get_unmeasured_first_snapshots keeps returning cycle 0
+               -> that trial never advances past the cycle it cannot measure
+
+  so one unmeasurable cycle zeroes out the entire trial, not just that cycle.
+  with -ns cycle 0 is always empty, so every no-seeds experiment recorded
+  nothing. with seeds it would instead freeze at the first plateau cycle,
+  which is worse: it looks fine until the fuzzer stops finding things.
+  the commit message's "the cycle's coverage archive is still written" was
+  the incorrect assumption.
+
+  fix: keep the run, drop the error report when the input dir was empty. that
+  was the actual goal. verified end to end -- 3/3 cycles measured, 0 profraw
+  errors, 0 "Coverage run failed", snapshots (0,0) (60,446) (120,446). the
+  446 matches smoke-4's pre-regression number for the same pair exactly.
+
+  still latent, not fixed: a cycle that genuinely cannot be measured (a broken
+  coverage binary, say) still blocks every later cycle for that trial and ends
+  the experiment with no snapshots and no error. the retry has no bound and
+  nothing reports the trial as unmeasured at the end. worth a real failure
+  path.
+
 make it work across multiple blades -> SLURM?
 
   cluster has a shared fs, so: no per-node image import at all. build once,
@@ -69,6 +174,14 @@ make it work across multiple blades -> SLURM?
   benchmark_utils.py:73 + scheduler.py:354 (threads docker_image_url into a
   per-instance startup script) are the same call sites both this and the
   content-addressing item have to change -> do them as one change.
+
+    done, on the content-addressing side. get_runner_image_ref(digest) is now
+    the single point where a trial's identity becomes something runnable, and
+    scheduler threads {{runner_image_ref}} into the template. swapping docker
+    for apptainer means changing what that ref materialises into (digest ->
+    <sha256>.sif on the shared fs) and replacing the `docker run` block in
+    runner-startup-script-template.sh with a slurm job step. nothing above
+    those two places needs to know.
 
   fallback if needed: node-local staging, for a cluster w/o shared fs or if
   the fs chokes on hundreds of tasks faulting in the same image at job start.
