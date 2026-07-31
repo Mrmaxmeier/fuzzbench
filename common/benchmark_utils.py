@@ -66,11 +66,27 @@ def get_type(benchmark):
     return benchmark_config.get_config(benchmark).get('type', default_value)
 
 
-def get_runner_image_url(experiment, benchmark, fuzzer, docker_registry):
-    """Get the URL of the docker runner image for fuzzing the benchmark with
-    fuzzer."""
-    tag = 'latest' if environment.get('LOCAL_EXPERIMENT') else experiment
-    return f'{docker_registry}/runners/{fuzzer}/{benchmark}:{tag}'
+def get_runner_image_ref(runner_image_digest):
+    """Get the reference to run for a trial, given the digest recorded for it.
+
+    A digest rather than a name. Names here used to carry the experiment as a
+    tag, which made the reference mutable in two directions at once: the tag
+    moved as an experiment was rebuilt, and the same tag on another machine
+    could name different content entirely. Recording the digest at build time
+    and running exactly that is what lets a trial's result be attributed to a
+    specific image afterwards.
+
+    This is also the seam for running trials outside docker. A digest is the
+    identity; how it gets materialised on the machine that runs it -- a local
+    image today, a single-file image on a shared filesystem later -- is the
+    launcher's problem, not the scheduler's.
+    """
+    if not runner_image_digest:
+        raise ValueError(
+            'Trial has no runner image digest. Trials are only created after '
+            'their runner image resolves, so this trial predates the image '
+            'lock and cannot be attributed to an image.')
+    return runner_image_digest
 
 
 def get_builder_image_url(benchmark, fuzzer, docker_registry):

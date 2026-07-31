@@ -32,16 +32,18 @@ def test_get_fuzz_target(oss_fuzz_benchmark):
             conftest.OSS_FUZZ_BENCHMARK_CONFIG['fuzz_target'])
 
 
-@pytest.mark.parametrize(
-    'benchmark,expected_url',
-    [(conftest.OSS_FUZZ_BENCHMARK_NAME,
-      'localhost/fuzzbench/runners/fuzzer/oss-fuzz-benchmark:experiment'),
-     (OTHER_BENCHMARK, 'localhost/fuzzbench/runners/fuzzer/benchmark:experiment')])
-def test_get_runner_image_url(benchmark, expected_url, oss_fuzz_benchmark):
-    """Test that we can get the runner image url of a benchmark."""
-    assert benchmark_utils.get_runner_image_url('experiment', benchmark,
-                                                'fuzzer',
-                                                DOCKER_REGISTRY) == expected_url
+def test_get_runner_image_ref():
+    """Test that a trial runs the image digest recorded for it."""
+    digest = 'sha256:' + 'a' * 64
+    assert benchmark_utils.get_runner_image_ref(digest) == digest
+
+
+@pytest.mark.parametrize('digest', [None, ''])
+def test_get_runner_image_ref_without_digest(digest):
+    """Test that a trial with no recorded digest is refused rather than run
+    against whatever image currently carries a matching name."""
+    with pytest.raises(ValueError):
+        benchmark_utils.get_runner_image_ref(digest)
 
 
 @pytest.mark.parametrize(('benchmark_name',), [

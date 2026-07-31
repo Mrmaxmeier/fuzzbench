@@ -26,6 +26,7 @@ from experiment import scheduler
 FUZZER = 'fuzzer'
 BENCHMARK = 'bench'
 ARBITRARY_DATETIME = datetime.datetime(2020, 1, 1)
+RUNNER_IMAGE_DIGEST = 'sha256:' + 'a' * 64
 
 # pylint: disable=invalid-name,unused-argument,redefined-outer-name,too-many-arguments,no-value-for-parameter,protected-access
 
@@ -58,7 +59,8 @@ def pending_trials(db, experiment_config):
                             benchmark=BENCHMARK,
                             fuzzer=FUZZER,
                             time_started=time_started,
-                            time_ended=time_ended)
+                            time_ended=time_ended,
+                            runner_image_digest=RUNNER_IMAGE_DIGEST)
 
     our_pending_trials = [
         create_trial(experiment_config['experiment']),
@@ -79,12 +81,8 @@ def pending_trials(db, experiment_config):
 
 @pytest.mark.parametrize(
     'benchmark,expected_image,expected_target',
-    [('benchmark1',
-      'localhost/fuzzbench/runners/fuzzer-a/benchmark1:test-experiment',
-      'fuzz-target'),
-     ('bloaty_fuzz_target',
-      'localhost/fuzzbench/runners/fuzzer-a/bloaty_fuzz_target:test-experiment',
-      'fuzz_target')])
+    [('benchmark1', RUNNER_IMAGE_DIGEST, 'fuzz-target'),
+     ('bloaty_fuzz_target', RUNNER_IMAGE_DIGEST, 'fuzz_target')])
 def test_create_trial_instance(benchmark, expected_image, expected_target,
                                experiment_config):
     """Test that create_trial_instance runs a local instance and creates a
@@ -118,7 +116,7 @@ docker run \\
 --shm-size=2g \\
 --cap-add SYS_NICE --cap-add SYS_PTRACE \\
 --security-opt seccomp=unconfined \\
-{docker_image_url} 2>&1 | tee /tmp/runner-log-9.txt'''
+{runner_image_ref} 2>&1 | tee /tmp/runner-log-9.txt'''
     with mock.patch('common.benchmark_utils.get_fuzz_target',
                     return_value=expected_target):
         _test_create_trial_instance(benchmark, expected_image, expected_target,
@@ -134,8 +132,12 @@ def _test_create_trial_instance(  # pylint: disable=too-many-locals
     fuzzer_param = 'fuzzer-a'
     trial = 9
     mocked_run_local_instance.return_value = True
-    scheduler.create_trial_instance(fuzzer_param, benchmark, trial,
-                                    experiment_config, False)
+    scheduler.create_trial_instance(fuzzer_param,
+                                    benchmark,
+                                    trial,
+                                    experiment_config,
+                                    False,
+                                    runner_image_digest=expected_image)
     instance_name = 'r-test-experiment-9'
     expected_startup_script_path = f'/tmp/{instance_name}-start-docker.sh'
 
@@ -149,7 +151,7 @@ def _test_create_trial_instance(  # pylint: disable=too-many-locals
         assert script_for_docker == expected_startup_script.format(
             benchmark=benchmark,
             oss_fuzz_target=expected_target,
-            docker_image_url=expected_image)
+            runner_image_ref=expected_image)
 
 
 @mock.patch('common.local_instance.run_local_instance')

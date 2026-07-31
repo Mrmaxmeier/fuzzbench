@@ -29,7 +29,7 @@ export HOME=/home/chronos
 mkdir -p $HOME
 docker-credential-gcr configure-docker -include-artifact-registry
 
-while ! docker pull {{docker_image_url}}
+while ! docker pull {{runner_image_ref}}
 do
   echo 'Error pulling image, retrying...'
 done{% endif %}
@@ -60,4 +60,4 @@ docker run \
 --shm-size=2g \
 --cap-add SYS_NICE --cap-add SYS_PTRACE \
 --security-opt seccomp=unconfined \
-{{docker_image_url}} 2>&1 | tee /tmp/runner-log-{{trial_id}}.txt
+{{runner_image_ref}} 2>&1 | tee /tmp/runner-log-{{trial_id}}.txt

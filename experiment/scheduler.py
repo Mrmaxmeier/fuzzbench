@@ -299,6 +299,7 @@ class TrialProxy:  # pylint: disable=too-many-instance-attributes
         self.time_ended = trial.time_ended
         self.cpuset = None
         self.trial_group_num = trial.trial_group_num
+        self.runner_image_digest = trial.runner_image_digest
 
 
 def _initialize_logs(experiment):
@@ -321,9 +322,14 @@ def _start_trial(trial: TrialProxy, experiment_config: dict, cpuset=None):
     # that calls this function completely terminates.
     _initialize_logs(experiment_config['experiment'])
     logger.info('Start trial %d.', trial.id)
-    started = create_trial_instance(trial.fuzzer, trial.benchmark, trial.id,
-                                    experiment_config, cpuset,
-                                    trial.trial_group_num)
+    started = create_trial_instance(
+        trial.fuzzer,
+        trial.benchmark,
+        trial.id,
+        experiment_config,
+        cpuset,
+        trial.trial_group_num,
+        runner_image_digest=trial.runner_image_digest)
     if started:
         trial.time_started = datetime_now()
         trial.cpuset = cpuset
@@ -339,12 +345,13 @@ def render_startup_script_template(  # pylint: disable=too-many-arguments
         trial_id: int,
         trial_group_num: int,
         experiment_config: dict,
-        cpuset=None):
+        cpuset=None,
+        *,
+        runner_image_digest: str = None):
     """Render the startup script using the template and the parameters
     provided and return the result."""
     experiment = experiment_config['experiment']
-    docker_image_url = benchmark_utils.get_runner_image_url(
-        experiment, benchmark, fuzzer, experiment_config['docker_registry'])
+    runner_image_ref = benchmark_utils.get_runner_image_ref(runner_image_digest)
     fuzz_target = benchmark_utils.get_fuzz_target(benchmark)
 
     template = JINJA_ENV.get_template('runner-startup-script-template.sh')
@@ -361,7 +368,7 @@ def render_startup_script_template(  # pylint: disable=too-many-arguments
         'experiment_filestore': experiment_config['experiment_filestore'],
         'report_filestore': experiment_config['report_filestore'],
         'fuzz_target': fuzz_target,
-        'docker_image_url': docker_image_url,
+        'runner_image_ref': runner_image_ref,
         'docker_registry': experiment_config['docker_registry'],
         'local_experiment': True,
         'no_seeds': experiment_config['no_seeds'],
@@ -382,15 +389,22 @@ def create_trial_instance(  # pylint: disable=too-many-arguments
         trial_id: int,
         experiment_config: dict,
         cpuset=None,
-        trial_group_num: int = 0) -> bool:
+        trial_group_num: int = 0,
+        *,
+        runner_image_digest: str = None) -> bool:
     """Create or start a trial instance for a specific
     trial_id,fuzzer,benchmark."""
     instance_name = experiment_utils.get_trial_instance_name(
         experiment_config['experiment'], trial_id)
-    startup_script = render_startup_script_template(instance_name, fuzzer,
-                                                    benchmark, trial_id,
-                                                    trial_group_num,
-                                                    experiment_config, cpuset)
+    startup_script = render_startup_script_template(
+        instance_name,
+        fuzzer,
+        benchmark,
+        trial_id,
+        trial_group_num,
+        experiment_config,
+        cpuset,
+        runner_image_digest=runner_image_digest)
     startup_script_path = f'/tmp/{instance_name}-start-docker.sh'
     with open(startup_script_path, 'w', encoding='utf-8') as file_handle:
         file_handle.write(startup_script)
