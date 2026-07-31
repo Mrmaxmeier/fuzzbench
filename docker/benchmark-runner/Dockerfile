@@ -18,28 +18,30 @@
 # whether it was built from `benchmark-runner/Dockerfile` or a custom
 # `runner.Dockerfile`.
 #
-# The benchmark/fuzzer pair is defined by build arguments. To specify them, pass
-# the following arguments to docker build:
+# Both parents are named by build argument rather than assembled from a
+# registry/fuzzer/benchmark triple. Composing the name here would mean the
+# reference is a mutable tag that resolves to whatever was built last, which
+# keeps the parents' identities out of this image's recipe hash. Passing them
+# in lets the caller substitute an immutable, content-addressed reference:
 #
 # $ docker build \
-#   --build-arg benchmark=afl \
-#   --build-arg fuzzer=freetype2-2017 \
+#   --build-arg builder_image=localhost/fuzzbench/builders/afl/zlib:<hash> \
+#   --build-arg parent_image=localhost/fuzzbench/runners/afl/zlib-intermediate:<hash> \
 #   ...
 
-ARG fuzzer
-ARG benchmark
-ARG registry=localhost/fuzzbench
+ARG builder_image
+ARG parent_image
 
 # We use Docker's multi-stage build feature to create a minimal runner image,
 # separate from the sometimes bulky builder images.
 
 # We take the already built builder image for the given fuzzer/benchmark pair
 # and refer to it as "builder", so we can copy the build artifacts from it.
-FROM $registry/builders/$fuzzer/$benchmark AS builder
+FROM $builder_image AS builder
 
 # We base the runner image from the intermediate runner image, defined by the
 # runner.Dockerfile of each fuzzer.
-FROM $registry/runners/$fuzzer/$benchmark-intermediate
+FROM $parent_image
 
 # Install runtime dependencies for benchmarks.
 

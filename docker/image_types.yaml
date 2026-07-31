@@ -113,11 +113,11 @@
 '{fuzzer}-{benchmark}-runner':
   benchmark: '{benchmark}'
   build_arg:
-    - 'benchmark={benchmark}'
-    - 'fuzzer={fuzzer}'
-    - 'registry={registry}'
+    - 'builder_image={registry}/builders/{fuzzer}/{benchmark}'
+    - 'parent_image={registry}/runners/{fuzzer}/{benchmark}-intermediate'
   depends_on:
     - '{fuzzer}-{benchmark}-intermediate-runner'
+    - '{fuzzer}-{benchmark}-builder'
   dockerfile: 'docker/benchmark-runner/Dockerfile'
   fuzzer: '{fuzzer}'
   context: '.'

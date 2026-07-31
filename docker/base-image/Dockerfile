@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM ubuntu:focal
+# Pinned by digest, not by the rolling "focal" tag. base-image is the root of
+# almost every other image, so a moving reference here would let the whole
+# merkle chain shift underneath recipe hashes that never changed. The
+# benchmarks and dispatcher-image already pin their bases the same way.
+FROM ubuntu@sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214
 
 ENV DEBIAN_FRONTEND=noninteractive
 
