@@ -317,8 +317,9 @@ class SnapshotMeasurer(coverage_utils.TrialCoverage):  # pylint: disable=too-man
             # existing available data.
             files_to_merge += [self.profdata_file]
 
-        result = coverage_utils.merge_profdata_files(files_to_merge,
-                                                     self.profdata_file)
+        coverage_binary = coverage_utils.get_coverage_binary(self.benchmark)
+        result = coverage_utils.merge_profdata_files(
+            files_to_merge, self.profdata_file, coverage_binary=coverage_binary)
         if result.retcode != 0:
             self.logger.error(
                 'Coverage profdata generation failed for cycle: %d.', cycle)
@@ -535,6 +536,12 @@ def set_up_coverage_binary(benchmark):
     with tarfile.open(archive_path, 'r:gz') as tar:
         tar.extractall(benchmark_coverage_binary_dir)
         os.remove(archive_path)
+    # Archives include /src for llvm-cov reports. Scrub glibc copies that
+    # would otherwise sit on a binary's RUNPATH and break measurement on a
+    # host newer than the build image. Also applies to archives built before
+    # llvm-tools/ was added.
+    coverage_utils.scrub_host_incompatible_libs(
+        str(benchmark_coverage_binary_dir))
 
 
 def initialize_logs():

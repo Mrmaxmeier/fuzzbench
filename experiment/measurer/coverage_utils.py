@@ -13,8 +13,10 @@
 # limitations under the License.
 """Utility functions for coverage report generation."""
 
-import os
+import glob
 import json
+import os
+from typing import Optional
 
 from common import experiment_path as exp_path
 from common import experiment_utils as exp_utils
@@ -31,6 +33,22 @@ from experiment.build import build_utils
 logger = logs.Logger()  # pylint: disable=invalid-name
 
 COV_DIFF_QUEUE_GET_TIMEOUT = 1
+
+# Shared objects whose SONAME is part of glibc/the dynamic linker. OSS-Fuzz
+# coverage builds sometimes put copies of these under /src (e.g. systemd's
+# $ORIGIN/src/shared RUNPATH). Extracted next to the coverage binary on a
+# newer host, they win over the host libc and the binary dies with
+# "version `GLIBC_2.xx' not found". Project libs in the same directory must
+# stay -- only the ABI-poisoning system ones are removed.
+_HOST_INCOMPATIBLE_LIB_PATTERNS = (
+    'libc.so*',
+    'libm.so*',
+    'libpthread.so*',
+    'libdl.so*',
+    'librt.so*',
+    'ld-linux*',
+    'ld64-linux*',
+)
 
 
 class CoverageBinaryNotFound(Exception):
@@ -137,7 +155,9 @@ class CoverageReporter:  # pylint: disable=too-many-instance-attributes
                 continue
             files_to_merge.append(profdata_file)
 
-        result = merge_profdata_files(files_to_merge, self.merged_profdata_file)
+        result = merge_profdata_files(files_to_merge,
+                                      self.merged_profdata_file,
+                                      coverage_binary=self.binary_file)
         if result.retcode != 0:
             logger.error('Profdata files merging failed.')
 
@@ -156,7 +176,7 @@ class CoverageReporter:  # pylint: disable=too-many-instance-attributes
     def generate_coverage_report(self):
         """Generates the coverage report and stores in bucket."""
         command = [
-            'llvm-cov',
+            llvm_tool('llvm-cov', self.binary_file),
             'show',
             '-format=html',
             f'-path-equivalence=/,{self.source_files_dir}',
@@ -227,6 +247,44 @@ def get_coverage_binary(benchmark: str) -> str:
     return coverage_binary
 
 
+def llvm_tool(name: str, coverage_binary: Optional[str] = None) -> str:
+    """Return an llvm-* tool that matches the coverage build when possible.
+
+    Coverage archives ship the builder image's llvm-profdata/llvm-cov under
+    llvm-tools/. Prefer those: a newer host tool on PATH rejects the raw
+    profile format the coverage clang wrote, and every trial then records
+    zero edges. Fall back to |name| on PATH for archives that predate the
+    llvm-tools/ directory (or for unit tests).
+    """
+    if coverage_binary:
+        sibling = os.path.join(
+            os.path.dirname(coverage_binary), 'llvm-tools', name)
+        if os.path.isfile(sibling) and os.access(sibling, os.X_OK):
+            return sibling
+    return name
+
+
+def scrub_host_incompatible_libs(coverage_binary_dir: str) -> None:
+    """Remove glibc/loader libs under |coverage_binary_dir|.
+
+    See _HOST_INCOMPATIBLE_LIB_PATTERNS. Safe to call on directories that have
+    none of them.
+    """
+    removed = []
+    for pattern in _HOST_INCOMPATIBLE_LIB_PATTERNS:
+        for path in glob.glob(os.path.join(coverage_binary_dir, '**', pattern),
+                              recursive=True):
+            if not os.path.isfile(path) and not os.path.islink(path):
+                continue
+            os.remove(path)
+            removed.append(path)
+    if removed:
+        logger.info(
+            'Removed %d host-incompatible shared libraries from %s '
+            '(glibc/loader SONAMEs that would poison RUNPATH).', len(removed),
+            coverage_binary_dir)
+
+
 def get_trial_ids(experiment: str, fuzzer: str, benchmark: str):
     """Gets ids of all finished trials for a pair of fuzzer and benchmark."""
     with db_utils.session_scope() as session:
@@ -239,9 +297,11 @@ def get_trial_ids(experiment: str, fuzzer: str, benchmark: str):
     return trial_ids
 
 
-def merge_profdata_files(src_files, dst_file):
-    """Uses llvm-profdata to merge |src_files| to |dst_files|."""
-    command = ['llvm-profdata', 'merge', '-sparse']
+def merge_profdata_files(src_files, dst_file, coverage_binary=None):
+    """Uses llvm-profdata to merge |src_files| to |dst_file|."""
+    command = [
+        llvm_tool('llvm-profdata', coverage_binary), 'merge', '-sparse'
+    ]
     command.extend(src_files)
     command.extend(['-o', dst_file])
     result = new_process.execute(command, expect_zero=False)
@@ -281,7 +341,7 @@ def generate_json_summary(coverage_binary,
     """Generates the json summary file from |coverage_binary|
     and |profdata_file|."""
     command = [
-        'llvm-cov',
+        llvm_tool('llvm-cov', coverage_binary),
         'export',
         '-format=text',
         '-num-threads=1',

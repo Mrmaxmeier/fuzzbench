@@ -121,8 +121,12 @@ def test_get_current_coverage_no_file(fs, experiment):
 
 
 @mock.patch('common.new_process.execute')
-def test_generate_profdata_create(mocked_execute, experiment, fs):
+@mock.patch('experiment.measurer.coverage_utils.get_coverage_binary',
+            return_value='/work/coverage-binaries/benchmark-a/fuzz-target')
+def test_generate_profdata_create(mocked_get_coverage_binary, mocked_execute,
+                                  experiment, fs):
     """Tests that generate_profdata can run the correct command."""
+    del mocked_get_coverage_binary  # Used as patch target only.
     mocked_execute.return_value = new_process.ProcessResult(0, '', False)
     snapshot_measurer = measure_manager.SnapshotMeasurer(
         FUZZER, BENCHMARK, TRIAL_NUM, SNAPSHOT_LOGGER, REGION_COVERAGE)
@@ -143,8 +147,12 @@ def test_generate_profdata_create(mocked_execute, experiment, fs):
 
 
 @mock.patch('common.new_process.execute')
-def test_generate_profdata_merge(mocked_execute, experiment, fs):
+@mock.patch('experiment.measurer.coverage_utils.get_coverage_binary',
+            return_value='/work/coverage-binaries/benchmark-a/fuzz-target')
+def test_generate_profdata_merge(mocked_get_coverage_binary, mocked_execute,
+                                 experiment, fs):
     """Tests that generate_profdata can run correctly with existing profraw."""
+    del mocked_get_coverage_binary  # Used as patch target only.
     mocked_execute.return_value = new_process.ProcessResult(0, '', False)
     snapshot_measurer = measure_manager.SnapshotMeasurer(
         FUZZER, BENCHMARK, TRIAL_NUM, SNAPSHOT_LOGGER, REGION_COVERAGE)
@@ -163,6 +171,35 @@ def test_generate_profdata_merge(mocked_execute, experiment, fs):
     assert (len(mocked_execute.call_args_list)) == 1
     args = mocked_execute.call_args_list[0]
     assert args[0][0] == expected
+
+
+@mock.patch('common.new_process.execute')
+@mock.patch('experiment.measurer.coverage_utils.get_coverage_binary')
+def test_generate_profdata_uses_shipped_llvm_tool(mocked_get_coverage_binary,
+                                                  mocked_execute, experiment,
+                                                  fs):
+    """Tests that generate_profdata prefers llvm-tools next to the binary."""
+    coverage_binary = '/work/coverage-binaries/benchmark-a/fuzz-target'
+    shipped = '/work/coverage-binaries/benchmark-a/llvm-tools/llvm-profdata'
+    mocked_get_coverage_binary.return_value = coverage_binary
+    mocked_execute.return_value = new_process.ProcessResult(0, '', False)
+    fs.create_file(coverage_binary)
+    fs.create_file(shipped)
+    os.chmod(shipped, 0o755)
+
+    snapshot_measurer = measure_manager.SnapshotMeasurer(
+        FUZZER, BENCHMARK, TRIAL_NUM, SNAPSHOT_LOGGER, REGION_COVERAGE)
+    snapshot_measurer.profdata_file = '/work/reports/data.profdata'
+    snapshot_measurer.profraw_file_pattern = '/work/reports/data-%m.profraw'
+    profraw_file = '/work/reports/data-123.profraw'
+    fs.create_file(profraw_file, contents='fake_contents')
+    snapshot_measurer.generate_profdata(CYCLE)
+
+    expected = [
+        shipped, 'merge', '-sparse', '/work/reports/data-123.profraw', '-o',
+        '/work/reports/data.profdata'
+    ]
+    assert mocked_execute.call_args_list[0][0][0] == expected
 
 
 @mock.patch('common.new_process.execute')

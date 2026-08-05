@@ -62,3 +62,43 @@ def test_get_coverage_binary_found(_mocked_binary, _mocked_target, experiment):
     """Tests that an existing coverage binary is returned unchanged."""
     assert (coverage_utils.get_coverage_binary('benchmark-a') ==
             '/work/coverage-binaries/benchmark-a/fuzz-target')
+
+
+def test_llvm_tool_prefers_shipped_binary(fs):
+    """Tests that llvm_tool uses the archive's llvm-tools when present."""
+    coverage_binary = '/work/coverage-binaries/bench/fuzz-target'
+    shipped = '/work/coverage-binaries/bench/llvm-tools/llvm-profdata'
+    fs.create_file(coverage_binary)
+    fs.create_file(shipped)
+    os.chmod(shipped, 0o755)
+    assert coverage_utils.llvm_tool('llvm-profdata',
+                                    coverage_binary) == shipped
+
+
+def test_llvm_tool_falls_back_to_path_name(fs):
+    """Tests that llvm_tool falls back to PATH when llvm-tools is absent."""
+    coverage_binary = '/work/coverage-binaries/bench/fuzz-target'
+    fs.create_file(coverage_binary)
+    assert coverage_utils.llvm_tool('llvm-profdata',
+                                    coverage_binary) == 'llvm-profdata'
+    assert coverage_utils.llvm_tool('llvm-cov') == 'llvm-cov'
+
+
+def test_scrub_host_incompatible_libs(fs):
+    """Tests that only glibc/loader SONAMEs are removed from coverage dirs."""
+    root = '/work/coverage-binaries/systemd'
+    keep = os.path.join(root, 'src/shared/libsystemd-shared-252.so')
+    remove_paths = [
+        os.path.join(root, 'src/shared/libc.so.6'),
+        os.path.join(root, 'src/shared/libm.so.6'),
+        os.path.join(root, 'src/shared/ld-linux-x86-64.so.2'),
+    ]
+    fs.create_file(keep)
+    for path in remove_paths:
+        fs.create_file(path)
+
+    coverage_utils.scrub_host_incompatible_libs(root)
+
+    assert os.path.exists(keep)
+    for path in remove_paths:
+        assert not os.path.exists(path)

@@ -104,15 +104,29 @@ def build_coverage(benchmark):
 
 
 def copy_coverage_binaries(benchmark, resolved):
-    """Copy coverage binaries in a local experiment."""
+    """Copy coverage binaries in a local experiment.
+
+    The archive also ships the image's llvm-profdata/llvm-cov under
+    llvm-tools/. Measurement must use those rather than whatever llvm-* the
+    host happens to have on PATH: a newer host tool rejects the raw profile
+    format the coverage build wrote (version mismatch), which zeroes every
+    trial's edges_covered.
+    """
     shared_coverage_binaries_dir = get_shared_coverage_binaries_dir()
     mount_arg = f'{shared_coverage_binaries_dir}:{shared_coverage_binaries_dir}'
     coverage_build_archive = f'coverage-build-{benchmark}.tar.gz'
     coverage_build_archive_shared_dir_path = os.path.join(
         shared_coverage_binaries_dir, coverage_build_archive)
+    # Pack llvm tools from the same image that built the binary, then /out,
+    # /src and /work. /src is needed for llvm-cov's path-equivalence when
+    # rendering HTML reports; glibc SONAMEs under it are scrubbed on extract
+    # so a host newer than the build image is not forced onto the image's
+    # libc via RUNPATH (see coverage_utils.scrub_host_incompatible_libs).
     command = (
-        '(cd /out; '
-        f'tar -czvf {coverage_build_archive_shared_dir_path} * /src /work)')
+        'set -e; cd /out; '
+        'mkdir -p llvm-tools; '
+        'cp "$(command -v llvm-profdata)" "$(command -v llvm-cov)" llvm-tools/; '
+        f'tar -czvf {coverage_build_archive_shared_dir_path} * /src /work')
     # Run the digest rather than the builder's mutable name. The binaries the
     # measurer scores coverage against have to come from the same image the
     # fuzz build descends from, and a name would only promise the most recent
