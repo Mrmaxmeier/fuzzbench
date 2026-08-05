@@ -366,3 +366,32 @@ def test_unhashed_parent_is_rejected(graph, docker, lock_dir, tmp_path):
         'FROM localhost/fuzzbench/base-image\n', encoding='utf-8')
     with pytest.raises(recipe_hash.UnhashedParentError):
         image_resolver.Resolver(graph, lock_dir=lock_dir).resolve('child')
+
+
+def test_image_digest_strips_podman_docker_shim_banner(monkeypatch):
+    """Podman's docker shim used to print a banner on stdout; ignore it."""
+    polluted = (
+        'Emulate Docker CLI using podman. Create /etc/containers/nodocker '
+        'to quiet msg.\n'
+        'a0cf22b8f44c0d79db33387017148e203696cb1f8884a6fb365a7c6dc6738507\n')
+
+    def fake_execute(command, *args, **kwargs):
+        del args, kwargs
+        assert command[:4] == ['docker', 'image', 'inspect', '--format']
+        return new_process.ProcessResult(0, polluted, False)
+
+    monkeypatch.setattr(image_resolver.new_process, 'execute', fake_execute)
+    assert image_resolver._image_digest('gcr.io/fuzzbench/base-image:tag') == (
+        'sha256:a0cf22b8f44c0d79db33387017148e203696cb1f8884a6fb365a7c6dc6738507')
+
+
+def test_image_digest_keeps_sha256_prefix(monkeypatch):
+    """Tests that an already-prefixed Id is left alone."""
+
+    def fake_execute(command, *args, **kwargs):
+        del command, args, kwargs
+        return new_process.ProcessResult(
+            0, 'sha256:' + 'ab' * 32 + '\n', False)
+
+    monkeypatch.setattr(image_resolver.new_process, 'execute', fake_execute)
+    assert image_resolver._image_digest('ref') == 'sha256:' + 'ab' * 32

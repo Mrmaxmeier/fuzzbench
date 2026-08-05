@@ -32,6 +32,7 @@ Two references are in play and they are not interchangeable:
 import argparse
 import dataclasses
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -51,6 +52,11 @@ CACHED = 'cached'  # The lock has it and the image is present.
 BUILD = 'build'  # No lock entry: it would be built and recorded.
 STALE = 'stale'  # The lock has it but the image is gone. See StaleLockError.
 UNKNOWN = 'unknown'  # A parent must be built before this one has a key.
+
+# Image IDs from `docker image inspect --format {{.Id}}`. Podman's docker shim
+# used to print a "Emulate Docker CLI..." banner on stdout; take the ID out of
+# whatever else the CLI may have printed.
+_IMAGE_ID_RE = re.compile(r'(?:sha256:)?[0-9a-f]{64}')
 
 
 @dataclasses.dataclass
@@ -349,7 +355,15 @@ def _image_digest(reference):
     result = new_process.execute(
         ['docker', 'image', 'inspect', '--format', '{{.Id}}', reference],
         cwd=utils.ROOT_DIR)
-    return result.output.strip()
+    match = _IMAGE_ID_RE.search(result.output or '')
+    if not match:
+        raise RuntimeError(
+            f'Could not parse image digest for {reference!r} from inspect '
+            f'output: {result.output!r}')
+    digest = match.group(0)
+    if not digest.startswith('sha256:'):
+        digest = f'sha256:{digest}'
+    return digest
 
 
 def main():
