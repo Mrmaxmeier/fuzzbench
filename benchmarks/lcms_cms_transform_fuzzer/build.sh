@@ -18,6 +18,6 @@ cd Little-CMS
 ./configure
 make -j $(nproc)
 
-$CXX $CXXFLAGS $SRC/cms_transform_fuzzer.cc -I include/ src/.libs/liblcms2.a \
+$CXX $CXXFLAGS -Wno-register $SRC/cms_transform_fuzzer.cc -I include/ src/.libs/liblcms2.a \
     $FUZZER_LIB -o $OUT/cms_transform_fuzzer
 cp -r /opt/seeds $OUT/

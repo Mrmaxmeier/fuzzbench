@@ -15,13 +15,26 @@
 #
 ################################################################################
 
-pip3 install -r $SRC/mbedtls/scripts/basic.requirements.txt
+# Clang 22 breaks this old mbedtls pin in several ways.
+PY=python3
+if command -v python3.10 >/dev/null; then PY=python3.10; fi
+"$PY" -m pip install -r "$SRC/mbedtls/scripts/basic.requirements.txt"
+# Source fix: string is 32 chars + NUL but array is size 32.
+sed -i 's/unsigned char ciphertext\[32\] = "(wabblewebblewibblewobblewubble)";/unsigned char ciphertext[33] = "(wabblewebblewibblewobblewubble)";/' \
+  tests/src/psa_exercise_key.c || true
+# mbedtls cmake appends -Werror -Wdocumentation after env CFLAGS.
+export CFLAGS="${CFLAGS} -Wno-error=documentation -Wno-error=unterminated-string-initialization"
+export CXXFLAGS="${CXXFLAGS} -Wno-error=documentation -Wno-error=unterminated-string-initialization"
 
 # build project
 perl scripts/config.pl set MBEDTLS_PLATFORM_TIME_ALT
 mkdir build
 cd build
-cmake -DENABLE_TESTING=OFF ..
+cmake -DENABLE_TESTING=OFF \
+  -DPython3_EXECUTABLE="$(command -v "$PY")" \
+  -DCMAKE_C_FLAGS="${CFLAGS}" \
+  -DCMAKE_CXX_FLAGS="${CXXFLAGS}" \
+  ..
 # build including fuzzers
 make -j$(nproc) all
 cp programs/fuzz/fuzz_* $OUT/

@@ -13,4 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Old OpenThread pin vs clang 22: OT cmake appends -Werror -Wdocumentation
+# (and friends) after CMAKE_*_FLAGS, so silence those as errors specifically.
+export CFLAGS="${CFLAGS} -Wno-error=documentation -Wno-error=unused-but-set-variable"
+export CXXFLAGS="${CXXFLAGS} -Wno-error=documentation -Wno-error=unused-but-set-variable"
 bash tests/fuzz/oss-fuzz-build
