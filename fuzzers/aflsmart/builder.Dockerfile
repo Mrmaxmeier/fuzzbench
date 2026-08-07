@@ -31,8 +31,9 @@ RUN echo 'deb http://dk.archive.ubuntu.com/ubuntu/ trusty main' >> \
     python2 && \
     curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py && \
     python2 get-pip.py && \
-    rm /usr/bin/python && \
-    ln -s /usr/bin/python2.7 /usr/bin/python
+    rm -f /usr/bin/python /usr/local/bin/python && \
+    ln -sf /usr/bin/python2.7 /usr/bin/python && \
+    ln -sf /usr/bin/python2.7 /usr/local/bin/python
 
 # Install AFLSmart dependencies.
 RUN dpkg --add-architecture i386 && \
@@ -60,8 +61,10 @@ RUN cd /afl && \
     unzip peach-3.0.202-source.zip && \
     patch -p1 < peach-3.0.202.patch && \
     cd peach-3.0.202-source && \
-    CC=gcc-4.4 CXX=g++-4.4 CFLAGS="" CXXFLAGS="-std=c++0x" ./waf configure && \
-    CC=gcc-4.4 CXX=g++-4.4 CFLAGS="" CXXFLAGS="-std=c++0x" ./waf install
+    CC=gcc-4.4 CXX=g++-4.4 CFLAGS="" CXXFLAGS="-std=c++0x" \
+      python2 ./waf configure && \
+    CC=gcc-4.4 CXX=g++-4.4 CFLAGS="" CXXFLAGS="-std=c++0x" \
+      python2 ./waf install
 
 # Use afl_driver.cpp from LLVM as our fuzzing library.
 RUN wget https://raw.githubusercontent.com/llvm/llvm-project/5feb80e748924606531ba28c97fe65145c65372e/compiler-rt/lib/fuzzer/afl/afl_driver.cpp -O /afl/afl_driver.cpp && \

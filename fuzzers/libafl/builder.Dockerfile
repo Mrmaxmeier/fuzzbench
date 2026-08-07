@@ -15,40 +15,39 @@
 ARG parent_image
 FROM $parent_image
 
-# Uninstall old Rust & Install the latest one.
+# Uninstall old Rust & Install a toolchain that supports edition 2024
+# (LibAFL 0.15.4 MSRV is 1.87).
 RUN if which rustup; then rustup self uninstall -y; fi && \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > /rustup.sh && \
-    sh /rustup.sh --default-toolchain nightly-2024-08-12 -y && \
+    sh /rustup.sh --default-toolchain 1.87.0 -y && \
     rm /rustup.sh
 
-# Install dependencies.
+# Build dependencies only. Do NOT install a second clang/llvm or run
+# createAliases.sh — that overwrites the OSS-Fuzz clang and breaks libc++
+# (__config_site) on C++ benchmarks. LibAFL 0.15.4 supports LLVM 15–33 and
+# builds against the parent image's clang 22.
 RUN apt-get update && \
-    apt-get remove -y llvm-10 && \
     apt-get install -y \
         build-essential \
-        lsb-release wget software-properties-common gnupg && \
-    apt-get install -y wget libstdc++5 libtool-bin automake flex bison \
+        lsb-release wget software-properties-common gnupg \
+        wget libstdc++5 libtool-bin automake flex bison \
         libglib2.0-dev libpixman-1-dev python3-setuptools unzip \
-        apt-utils apt-transport-https ca-certificates joe curl && \
-    wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 17
-
-RUN wget https://gist.githubusercontent.com/tokatoka/26f4ba95991c6e33139999976332aa8e/raw/698ac2087d58ce5c7a6ad59adce58dbfdc32bd46/createAliases.sh && chmod u+x ./createAliases.sh && ./createAliases.sh 
+        apt-utils apt-transport-https ca-certificates joe curl
 
 # Download libafl.
 RUN git clone https://github.com/AFLplusplus/LibAFL /libafl
 
-# Checkout a current commit
-RUN cd /libafl && git pull && git checkout f856092f3d393056b010fcae3b086769377cba18 || true
-# Note that due a nightly bug it is currently fixed to a known version on top!
+# Pin to the 0.15.4 release (fuzzbench harness lives under fuzzers/inprocess/).
+RUN cd /libafl && git checkout bd49bdf4f64a50349d803646fb2afa9b8b104fa5
 
 # Compile libafl.
 RUN cd /libafl && \
     unset CFLAGS CXXFLAGS && \
     export LIBAFL_EDGES_MAP_SIZE=2621440 && \
-    cd ./fuzzers/fuzzbench/fuzzbench && \
+    cd ./fuzzers/inprocess/fuzzbench && \
     PATH="/root/.cargo/bin/:$PATH" cargo build --profile release-fuzzbench --features no_link_main
 
 # Auxiliary weak references.
-RUN cd /libafl/fuzzers/fuzzbench/fuzzbench && \
+RUN cd /libafl/fuzzers/inprocess/fuzzbench && \
     clang -c stub_rt.c && \
     ar r /stub_rt.a stub_rt.o

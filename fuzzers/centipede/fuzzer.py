@@ -40,10 +40,13 @@ def build():
     utils.append_flags('CXXFLAGS', cflags)
     utils.append_flags('LDFLAGS', ['/lib/weak.o'])
 
-    os.environ['CC'] = '/clang/bin/clang'
-    os.environ['CXX'] = '/clang/bin/clang++'
+    os.environ['CC'] = 'clang'
+    os.environ['CXX'] = 'clang++'
     os.environ['FUZZER_LIB'] = (
         '/src/centipede/bazel-bin/libcentipede_runner.pic.a')
+    # Ensure libc++ from the OSS-Fuzz toolchain is on the link line when
+    # clang-flags.txt requests -stdlib=libc++.
+    utils.append_flags('LDFLAGS', ['-L/usr/local/lib', '-lc++'])
     utils.build_benchmark()
 
 

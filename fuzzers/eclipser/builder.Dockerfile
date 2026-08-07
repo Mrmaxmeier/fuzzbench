@@ -27,13 +27,16 @@ RUN git clone https://github.com/google/AFL.git /afl && \
     AFL_NO_X86=1 make
 
 # Use afl_driver.cpp for AFL, and StandaloneFuzzTargetMain.c for Eclipser.
+# Build archives in /tmp so leftover .o files are not picked up by benchmarks
+# that link with a bare "*.o" glob (e.g. woff2).
 RUN apt-get update && \
     apt-get install wget -y && \
     wget https://raw.githubusercontent.com/llvm/llvm-project/5feb80e748924606531ba28c97fe65145c65372e/compiler-rt/lib/fuzzer/afl/afl_driver.cpp -O /afl/afl_driver.cpp && \
+    cd /tmp && \
     clang -Wno-pointer-sign -c /afl/llvm_mode/afl-llvm-rt.o.c -I/afl && \
     clang++ -stdlib=libc++ -std=c++11 -O2 -c /afl/afl_driver.cpp && \
     ar r /libAFL.a *.o && \
-    wget https://raw.githubusercontent.com/llvm/llvm-project/5feb80e748924606531ba28c97fe65145c65372e/compiler-rt/lib/fuzzer/standalone/StandaloneFuzzTargetMain.c -O /StandaloneFuzzTargetMain.c && \
-    clang -O2 -c /StandaloneFuzzTargetMain.c && \
+    wget https://raw.githubusercontent.com/llvm/llvm-project/5feb80e748924606531ba28c97fe65145c65372e/compiler-rt/lib/fuzzer/standalone/StandaloneFuzzTargetMain.c -O /tmp/StandaloneFuzzTargetMain.c && \
+    clang -O2 -c /tmp/StandaloneFuzzTargetMain.c && \
     ar rc /libStandaloneFuzzTarget.a StandaloneFuzzTargetMain.o && \
-    rm /StandaloneFuzzTargetMain.c
+    rm -f /tmp/*.o /tmp/*.c /tmp/*.cpp

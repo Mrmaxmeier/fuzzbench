@@ -34,11 +34,16 @@ RUN apt-get update && \
         gcc-$(gcc --version|head -n1|sed 's/\..*//'|sed 's/.* //')-plugin-dev \
         libstdc++-$(gcc --version|head -n1|sed 's/\..*//'|sed 's/.* //')-dev
 
-# Download afl++.
-RUN git clone -b dev https://github.com/AFLplusplus/AFLplusplus /afl && \
+# Download afl++. Use a recent stable that understands LLVM 16+ (c++17).
+RUN git clone -b stable https://github.com/AFLplusplus/AFLplusplus /afl && \
     cd /afl && \
-    git checkout 56d5aa3101945e81519a3fac8783d0d8fad82779 || \
-    true
+    git checkout ad5304010ae3be9d5cdc1ba51b09e14169c5cb87
+
+# OSS-Fuzz's LLVM 22 still exposes the pre-22 StringSwitch::Cases overloads;
+# AFL++ stable assumes the initializer_list API for major >= 22. Keep the old
+# overload until upstream bumps the guard.
+RUN sed -i 's/LLVM_VERSION_MAJOR >= 22/LLVM_VERSION_MAJOR >= 23/g' \
+        /afl/instrumentation/afl-llvm-common.cc
 
 # Build without Python support as we don't need it.
 # Set AFL_NO_X86 to skip flaky tests.
@@ -46,4 +51,5 @@ RUN cd /afl && \
     unset CFLAGS CXXFLAGS && \
     export CC=clang AFL_NO_X86=1 && \
     PYTHON_INCLUDE=/ make && \
+    make -C utils/aflpp_driver && \
     cp utils/aflpp_driver/libAFLDriver.a /
