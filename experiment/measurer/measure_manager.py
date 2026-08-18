@@ -665,7 +665,8 @@ def measure_manager_loop(experiment: str,
         measurers_cpus = multiprocessing.cpu_count()
         logger.info('Number of measurer CPUs not passed as argument. using %d',
                     measurers_cpus)
-    with multiprocessing.Pool() as pool, multiprocessing.Manager() as manager:
+    with multiprocessing.Pool(measurers_cpus) as pool, \
+            multiprocessing.Manager() as manager:
         logger.info('Setting up coverage binaries')
         set_up_coverage_binaries(pool, experiment)
         request_queue = manager.Queue()

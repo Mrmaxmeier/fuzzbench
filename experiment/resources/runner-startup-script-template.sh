@@ -22,9 +22,19 @@ echo 0 > /proc/sys/kernel/yama/ptrace_scope
 echo core >/proc/sys/kernel/core_pattern
 
 # Start docker.
-docker run \
+# Run detached and stream logs with `docker logs -f` rather than attaching:
+# a foreground `docker run` needs the API connection upgraded to a raw
+# hijacked stream, which podman's Docker-API compatibility layer (used to run
+# local experiments without a real dockerd) rejects with "unable to upgrade to
+# tcp, received 500". `docker logs -f` is a plain log-streaming endpoint that
+# behaves the same against real dockerd, so this is not local-only.
+#
+# No --cpuset-cpus: pinning a trial to a core needs the cpuset controller,
+# which isn't delegated to podman containers nested this deeply. --cpus alone
+# still caps each trial's CPU share, so trials stay bounded - just not pinned.
+docker run -d \
+--name {{instance_name}} \
 --privileged --cpus={{num_cpu_cores}} --rm \
-{% if cpuset %}--cpuset-cpus={{cpuset}} {% endif %}\
 -e INSTANCE_NAME={{instance_name}} \
 -e FUZZER={{fuzzer}} \
 -e BENCHMARK={{benchmark}} \
@@ -46,4 +56,5 @@ docker run \
 --shm-size=2g \
 --cap-add SYS_NICE --cap-add SYS_PTRACE \
 --security-opt seccomp=unconfined \
-{{runner_image_ref}} 2>&1 | tee /tmp/runner-log-{{trial_id}}.txt
+{{runner_image_ref}} > /dev/null
+docker logs -f {{instance_name}} > /tmp/runner-log-{{trial_id}}.txt 2>&1

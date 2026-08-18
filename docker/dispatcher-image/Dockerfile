@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ARG base_image=localhost/fuzzbench/base-image
+
 FROM gcr.io/oss-fuzz-base/base-clang@sha256:d3d07062af1beb5d83466fedea02cc832355e0da2453e9c9df3159bae256510c AS base-clang
 
-ARG base_image=localhost/fuzzbench/base-image
 FROM $base_image
 
 ENV WORK /work
@@ -36,7 +37,7 @@ RUN DOCKER_VERSION=29.5.3 && \
     mv docker/docker /usr/bin/ && \
     rm -rf docker docker-$DOCKER_VERSION.tgz
 # Install docker buildx plugin
-COPY --from=docker/buildx-bin /buildx /usr/libexec/docker/cli-plugins/docker-buildx
+COPY --from=docker.io/docker/buildx-bin /buildx /usr/libexec/docker/cli-plugins/docker-buildx
 
 # Copy llvm-tool binaries needed for clang source-code based coverage and
 # symbolization.

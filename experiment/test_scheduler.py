@@ -88,9 +88,19 @@ def test_create_trial_instance(benchmark, expected_image, expected_target,
     """Test that create_trial_instance runs a local instance and creates a
     startup script for the trial, as we expect it to."""
     expected_startup_script = '''# Start docker.
-docker run \\
+# Run detached and stream logs with `docker logs -f` rather than attaching:
+# a foreground `docker run` needs the API connection upgraded to a raw
+# hijacked stream, which podman's Docker-API compatibility layer (used to run
+# local experiments without a real dockerd) rejects with "unable to upgrade to
+# tcp, received 500". `docker logs -f` is a plain log-streaming endpoint that
+# behaves the same against real dockerd, so this is not local-only.
+#
+# No --cpuset-cpus: pinning a trial to a core needs the cpuset controller,
+# which isn't delegated to podman containers nested this deeply. --cpus alone
+# still caps each trial's CPU share, so trials stay bounded - just not pinned.
+docker run -d \\
+--name r-test-experiment-9 \\
 --privileged --cpus=1 --rm \\
-\\
 -e INSTANCE_NAME=r-test-experiment-9 \\
 -e FUZZER=fuzzer-a \\
 -e BENCHMARK={benchmark} \\
@@ -112,7 +122,8 @@ docker run \\
 --shm-size=2g \\
 --cap-add SYS_NICE --cap-add SYS_PTRACE \\
 --security-opt seccomp=unconfined \\
-{runner_image_ref} 2>&1 | tee /tmp/runner-log-9.txt'''
+{runner_image_ref} > /dev/null
+docker logs -f r-test-experiment-9 > /tmp/runner-log-9.txt 2>&1'''
     with mock.patch('common.benchmark_utils.get_fuzz_target',
                     return_value=expected_target):
         _test_create_trial_instance(benchmark, expected_image, expected_target,

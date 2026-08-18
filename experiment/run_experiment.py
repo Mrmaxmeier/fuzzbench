@@ -370,6 +370,33 @@ def copy_resources_to_filestore(config_dir: str, config: Dict):
                 parallel=True)
 
 
+# Environment passed to the dispatcher container on top of the experiment
+# config.
+#
+# DOCKER_BUILDKIT: the dispatcher's `docker` CLI defaults to building through
+# buildx/BuildKit, whose session protocol podman's Docker-API compatibility
+# layer (used to run local experiments without a real dockerd) can't serve.
+# Buildx then silently falls back to an isolated "docker-container" builder
+# that can't see locally-built parent images, so `FROM localhost/...` fails to
+# resolve. The legacy build path podman does support.
+#
+# *_NUM_THREADS: OpenBLAS, pulled in transitively by pandas/scipy for report
+# generation, sizes its thread pool off the visible CPU count on *every*
+# numpy-linked process, independent of any multiprocessing.Pool sizing done
+# here. On high core-count hosts that alone exhausts the container's pids
+# limit.
+_DISPATCHER_ENV_ARGS = [
+    '-e',
+    'DOCKER_BUILDKIT=0',
+    '-e',
+    'OPENBLAS_NUM_THREADS=2',
+    '-e',
+    'OMP_NUM_THREADS=2',
+    '-e',
+    'NUMEXPR_NUM_THREADS=2',
+]
+
+
 class Dispatcher:
     """Class representing the dispatcher, which runs the experiment in a
     container on this host."""
@@ -413,6 +440,7 @@ class Dispatcher:
         environment_args = [
             '-e',
             'LOCAL_EXPERIMENT=True',
+            *_DISPATCHER_ENV_ARGS,
             '-e',
             set_instance_name_arg,
             '-e',
