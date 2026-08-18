@@ -24,16 +24,22 @@ rather than about layers. Experiment builds must use this module's resolver.
 """
 
 import os
+import subprocess
 import threading
 from typing import List
 
 from common import experiment_utils
+from common import logs
 from common import new_process
 from experiment.build import docker_images
 from experiment.build import image_resolver
 
 _resolver = None  # pylint: disable=invalid-name
 _resolver_lock = threading.Lock()  # pylint: disable=invalid-name
+
+# Generous ceiling for `docker wait` on the coverage-binaries copy container:
+# the largest benchmarks archive several GB of /src, /work and /out.
+COVERAGE_BINARIES_COPY_TIMEOUT = 30 * 60
 
 
 def init_resolver(fuzzers: List[str], benchmarks: List[str]):
@@ -131,10 +137,44 @@ def copy_coverage_binaries(benchmark, resolved):
     # measurer scores coverage against have to come from the same image the
     # fuzz build descends from, and a name would only promise the most recent
     # build of something with a matching label.
-    return new_process.execute([
-        'docker', 'run', '-v', mount_arg, resolved.digest, '/bin/bash', '-c',
-        command
-    ])
+    _run_container_and_wait(
+        ['-v', mount_arg, resolved.digest, '/bin/bash', '-c', command],
+        COVERAGE_BINARIES_COPY_TIMEOUT,
+        f'Coverage binaries copy for {benchmark}')
+
+
+def _run_container_and_wait(run_args: List[str], timeout: int,
+                            description: str):
+    """Runs a container detached and blocks until it exits, raising if it fails
+    or doesn't finish within |timeout| seconds. The container is always
+    removed.
+
+    Detached rather than a foreground `docker run` because podman's Docker-API
+    compat layer can fail to signal stream EOF back to an attached client even
+    after the container has exited, hanging it forever (same root cause as the
+    trial-runner fix in runner-startup-script-template.sh). `docker wait` polls
+    a plain container-state endpoint instead, so it isn't subject to that race;
+    |timeout| is a second line of defense in case it wedges anyway.
+    """
+    run_command = ['docker', 'run', '-d'] + run_args
+    container_id = new_process.execute(run_command).output.strip()
+    try:
+        wait_result = new_process.execute(['docker', 'wait', container_id],
+                                          timeout=timeout)
+        if wait_result.timed_out:
+            raise TimeoutError(
+                f'{description} did not finish within {timeout} seconds.')
+
+        exit_code = int(wait_result.output.strip())
+        if exit_code != 0:
+            container_logs = new_process.execute(
+                ['docker', 'logs', container_id], expect_zero=False).output
+            logs.error('%s failed with exit code %d: %s', description,
+                       exit_code, container_logs)
+            raise subprocess.CalledProcessError(exit_code, run_command)
+    finally:
+        new_process.execute(['docker', 'rm', '-f', container_id],
+                            expect_zero=False)
 
 
 def build_fuzzer_benchmark(fuzzer: str, benchmark: str):
