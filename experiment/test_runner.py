@@ -196,14 +196,21 @@ def test_save_corpus_archive(_, trial_runner, fs):
     """Test that save_corpus_archive calls filestore cp on the corpus."""
     archive_name = 'x.tar.gz'
     fs.create_file(archive_name, contents='')
-    with test_utils.mock_popen_ctx_mgr() as mocked_popen:
+    expected_destination = posixpath.join(
+        '/bucket/experiment-name/experiment-folders/'
+        'benchmark-1-fuzzer_a/trial-1/corpus', archive_name)
+    # The real `cp` writes to a same-directory temp file that local_filestore
+    # then renames into place (see local_filestore.cp); os.rename needs that
+    # temp file to actually exist, which the subprocess-level Popen mock
+    # doesn't create, so create it ourselves.
+    with mock.patch('os.rename') as mocked_rename, \
+            test_utils.mock_popen_ctx_mgr() as mocked_popen:
         trial_runner.save_corpus_archive(archive_name)
-        assert mocked_popen.commands == [[
-            'cp', archive_name,
-            posixpath.join(
-                '/bucket/experiment-name/experiment-folders/'
-                'benchmark-1-fuzzer_a/trial-1/corpus', archive_name)
-        ]]
+        assert len(mocked_popen.commands) == 1
+        command = mocked_popen.commands[0]
+        assert command[:2] == ['cp', archive_name]
+        assert command[2].startswith(expected_destination + '.tmp-')
+        mocked_rename.assert_called_with(command[2], expected_destination)
     assert not os.path.exists(archive_name)
 
 
@@ -221,20 +228,24 @@ def test_do_sync_unchanged(mocked_debug, trial_runner, fuzzer_module):
     """Test that do_sync records if there was no corpus change since last
     cycle."""
     trial_runner.cycle = 1337
-    with test_utils.mock_popen_ctx_mgr() as mocked_popen:
+    expected_corpus_destination = (
+        '/bucket/experiment-name/experiment-folders/'
+        'benchmark-1-fuzzer_a/trial-1/corpus/'
+        'corpus-archive-1337.tar.gz')
+    # See test_save_corpus_archive: os.rename needs the temp file the real
+    # `cp` would have written, which the Popen mock doesn't create.
+    with mock.patch('os.rename'), test_utils.mock_popen_ctx_mgr() as mocked_popen:
         trial_runner.do_sync()
-        assert mocked_popen.commands == [
-            [
-                'cp', '/corpus-archives/corpus-archive-1337.tar.gz',
-                ('/bucket/experiment-name/experiment-folders/'
-                 'benchmark-1-fuzzer_a/trial-1/corpus/'
-                 'corpus-archive-1337.tar.gz')
-            ],
-            [
-                'rsync', '--delete', '-r', '/results-copy/',
-                ('/bucket/experiment-name/experiment-folders/'
-                 'benchmark-1-fuzzer_a/trial-1/results')
-            ]
+        assert len(mocked_popen.commands) == 2
+        cp_command = mocked_popen.commands[0]
+        assert cp_command[:2] == [
+            'cp', '/corpus-archives/corpus-archive-1337.tar.gz'
+        ]
+        assert cp_command[2].startswith(expected_corpus_destination + '.tmp-')
+        assert mocked_popen.commands[1] == [
+            'rsync', '--delete', '-r', '/results-copy/',
+            ('/bucket/experiment-name/experiment-folders/'
+             'benchmark-1-fuzzer_a/trial-1/results')
         ]
     assert not os.listdir(trial_runner.corpus_archives_dir)  # !!! make it work
 
@@ -247,22 +258,28 @@ def test_do_sync_changed(mocked_execute, fs, trial_runner, fuzzer_module):
     corpus_file_name = 'corpus-file'
     fs.create_file(os.path.join(trial_runner.output_corpus, corpus_file_name))
     trial_runner.cycle = 1337
-    trial_runner.do_sync()
-    assert mocked_execute.call_args_list == [
-        mock.call([
-            'cp', '/corpus-archives/corpus-archive-1337.tar.gz',
-            ('/bucket/experiment-name/experiment-folders/'
-             'benchmark-1-fuzzer_a/trial-1/corpus/'
-             'corpus-archive-1337.tar.gz')
-        ],
-                  expect_zero=True),
-        mock.call([
-            'rsync', '--delete', '-r', '/results-copy/',
-            ('/bucket/experiment-name/experiment-folders/'
-             'benchmark-1-fuzzer_a/trial-1/results')
-        ],
-                  expect_zero=True)
+    expected_corpus_destination = (
+        '/bucket/experiment-name/experiment-folders/'
+        'benchmark-1-fuzzer_a/trial-1/corpus/'
+        'corpus-archive-1337.tar.gz')
+    # See test_save_corpus_archive: os.rename needs the temp file the real
+    # `cp` would have written, which the execute() mock doesn't create.
+    with mock.patch('os.rename'):
+        trial_runner.do_sync()
+    assert len(mocked_execute.call_args_list) == 2
+    cp_call = mocked_execute.call_args_list[0]
+    cp_command = cp_call[0][0]
+    assert cp_command[:2] == [
+        'cp', '/corpus-archives/corpus-archive-1337.tar.gz'
     ]
+    assert cp_command[2].startswith(expected_corpus_destination + '.tmp-')
+    assert cp_call[1] == {'expect_zero': True}
+    assert mocked_execute.call_args_list[1] == mock.call([
+        'rsync', '--delete', '-r', '/results-copy/',
+        ('/bucket/experiment-name/experiment-folders/'
+         'benchmark-1-fuzzer_a/trial-1/results')
+    ],
+                                                          expect_zero=True)
     # Archives should get deleted after syncing.
     archives = os.listdir(trial_runner.corpus_archives_dir)
     assert len(archives) == 0

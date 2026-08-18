@@ -95,5 +95,11 @@ def test_keyword_args(experiment):  # pylint: disable=unused-argument
         # argv matters for this assertion.
         with mock.patch('common.filesystem.create_directory'):
             filestore_utils.cp(LOCAL_DIR, LOCAL_DIR_2, parallel=True)
-        mocked_execute.assert_called_with(['cp', LOCAL_DIR, LOCAL_DIR_2],
-                                          expect_zero=True)
+        # Single-file cp lands via a temp file + atomic rename (see
+        # local_filestore.cp), so the destination passed to `cp` itself is a
+        # sibling temp path, not LOCAL_DIR_2 directly.
+        assert len(mocked_execute.call_args_list) == 1
+        called_argv = mocked_execute.call_args_list[0][0][0]
+        assert called_argv[:2] == ['cp', LOCAL_DIR]
+        assert called_argv[2].startswith(LOCAL_DIR_2 + '.tmp-')
+        assert mocked_execute.call_args_list[0][1] == {'expect_zero': True}

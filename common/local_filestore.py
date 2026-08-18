@@ -14,6 +14,7 @@
 """Helper functions for using the local_filestore."""
 
 import os
+import threading
 
 from common import new_process
 from common import filesystem
@@ -28,11 +29,39 @@ def cp(  # pylint: disable=invalid-name
     """Executes "cp" command from |source| to |destination|."""
     filesystem.create_directory(os.path.dirname(destination))
 
+    # A single file copied onto a path of its own goes through
+    # _atomic_cp. Directory destinations (recursive copies, or a file copied
+    # into an existing directory) can't be raced the same way and have no
+    # sensible temp sibling to rename in, so they stay a plain `cp`.
+    if not (recursive or destination.endswith(os.sep) or
+            os.path.isdir(destination)):
+        return _atomic_cp(source, destination, expect_zero)
+
     command = ['cp']
     if recursive:
         command.append('-r')
     command.extend([source, destination])
     return new_process.execute(command, expect_zero=expect_zero)
+
+
+def _atomic_cp(source, destination, expect_zero):
+    """Copies |source| to a temp file next to |destination| and renames it
+    into place, so a concurrent reader only ever sees a missing or a complete
+    file. Plain `cp` writes straight into |destination| and still exits 0, so
+    a reader that opens it mid-write (e.g. the measurer polling a trial's
+    corpus archive while the runner is still writing it) silently gets a
+    truncated file."""
+    tmp_destination = f'{destination}.tmp-{os.getpid()}-{threading.get_ident()}'
+    try:
+        result = new_process.execute(['cp', source, tmp_destination],
+                                     expect_zero=expect_zero)
+        if result.retcode == 0:
+            os.rename(tmp_destination, destination)
+        return result
+    finally:
+        # Nothing to clean up after a successful rename.
+        if os.path.exists(tmp_destination):
+            os.remove(tmp_destination)
 
 
 def ls(path, must_exist=True):  # pylint: disable=invalid-name

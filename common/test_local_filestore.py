@@ -71,6 +71,69 @@ def test_cp(tmp_path):
         assert file_handle.read() == data
 
 
+def test_cp_no_partial_file_visible_during_copy(tmp_path):
+    """Tests that a concurrent reader never observes a partially written
+    destination file: cp must write to a temp file and only rename it into
+    place once the copy has fully completed."""
+    source = tmp_path / 'source'
+    with open(source, 'w', encoding='utf-8') as file_handle:
+        file_handle.write('hello')
+    destination = tmp_path / 'destination'
+
+    real_execute = local_filestore.new_process.execute
+
+    def fake_execute(command, **kwargs):
+        # At the point the underlying `cp` has run, the real destination
+        # must not exist yet (only its temp sibling may).
+        assert not destination.exists()
+        return real_execute(command, **kwargs)
+
+    with mock.patch('common.new_process.execute', side_effect=fake_execute):
+        local_filestore.cp(str(source), str(destination))
+
+    assert destination.exists()
+    assert set(tmp_path.iterdir()) == {source, destination}
+    with open(destination, encoding='utf-8') as file_handle:
+        assert file_handle.read() == 'hello'
+
+
+def test_cp_failed_copy_leaves_no_temp_file(tmp_path):
+    """Tests that a single-file copy that fails part way through cleans up its
+    temp file instead of leaving it next to the destination."""
+    source = tmp_path / 'source'
+    with open(source, 'w', encoding='utf-8') as file_handle:
+        file_handle.write('hello')
+    destination = tmp_path / 'destination'
+
+    def failing_execute(command, **kwargs):  # pylint: disable=unused-argument
+        # `cp` can fail after having created a partial destination.
+        with open(command[2], 'w', encoding='utf-8') as file_handle:
+            file_handle.write('hel')
+        raise subprocess.CalledProcessError(1, command)
+
+    with mock.patch('common.new_process.execute', side_effect=failing_execute):
+        with pytest.raises(subprocess.CalledProcessError):
+            local_filestore.cp(str(source), str(destination))
+
+    assert list(tmp_path.iterdir()) == [source]
+
+
+def test_cp_dest_is_existing_dir(tmp_path):
+    """Tests that cp-into-an-existing-directory (no trailing slash, not
+    recursive) still copies the file in directly, not via temp+rename."""
+    source = tmp_path / 'source'
+    with open(source, 'w', encoding='utf-8') as file_handle:
+        file_handle.write('hello')
+    dest_dir = tmp_path / 'dest_dir'
+    dest_dir.mkdir()
+
+    local_filestore.cp(str(source), str(dest_dir))
+
+    assert (dest_dir / 'source').exists()
+    with open(dest_dir / 'source', encoding='utf-8') as file_handle:
+        assert file_handle.read() == 'hello'
+
+
 def test_cp_nonexistent_dest(tmp_path):
     """Tests cp will create intermediate folders for destination."""
     source_dir = tmp_path / 'source'
