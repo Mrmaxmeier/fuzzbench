@@ -510,7 +510,7 @@ def test_measure_manager_inner_loop_dont_write_to_db(
     mocked_consume_snapshots_from_response_queue.return_value = []
     measure_manager.measure_manager_inner_loop('experiment', 1, request_queue,
                                                response_queue, set())
-    mocked_add_all.not_called()
+    mocked_add_all.assert_not_called()
 
 
 @mock.patch('experiment.measurer.measure_manager.get_unmeasured_snapshots')
