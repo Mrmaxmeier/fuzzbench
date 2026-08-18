@@ -501,9 +501,11 @@ def test_consume_snapshot_type_from_response_queue():
 @mock.patch('experiment.measurer.measure_manager.get_unmeasured_snapshots')
 def test_measure_manager_inner_loop_break_condition(
         mocked_get_unmeasured_snapshots):
-    """Tests that the measure manager inner loop returns False when there's no
-    more snapshots left to be measured."""
-    # Empty list means no more snapshots left to be measured.
+    """Tests that the measure manager inner loop returns False when nothing was
+    due to be measured on this pass. That is a normal, transient state and must
+    not be treated as "the experiment is done" by callers - see
+    measure_manager_loop, which polls on scheduler.all_trials_ended instead."""
+    # Empty list means nothing was due to be measured this pass.
     mocked_get_unmeasured_snapshots.return_value = []
     request_queue = queue.Queue()
     response_queue = queue.Queue()

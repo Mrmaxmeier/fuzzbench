@@ -640,8 +640,10 @@ def measure_manager_inner_loop(experiment: str,
                                retry_counts=None):
     """Reads from database to determine which snapshots needs measuring. Write
     measurements tasks to request queue, get results from response queue, and
-    write measured snapshots to database. Returns False if there's no more
-    snapshots left to be measured"""
+    write measured snapshots to database. Returns False if nothing was due to
+    be measured on this pass - NOT a signal that the experiment is done (the
+    next cycle may simply not be due in real time yet); callers should keep
+    polling until trials have actually ended."""
     if retry_counts is None:
         retry_counts = {}
     initialize_logs()
@@ -716,11 +718,14 @@ def measure_manager_loop(experiment: str,
         queued_snapshots = set()  # type: ignore[var-annotated]
         retry_counts: dict = {}
         while not scheduler.all_trials_ended(experiment):
-            continue_inner_loop = measure_manager_inner_loop(
-                experiment, max_cycle, request_queue, response_queue,
-                queued_snapshots, retry_counts)
-            if not continue_inner_loop:
-                break
+            # A pass that finds nothing due is not a reason to stop, so the
+            # inner loop's return value isn't used here: with next-cycle
+            # scheduling gated on real elapsed time, "nothing unmeasured right
+            # now" is the normal state between snapshot syncs. Trials still
+            # running, checked above, is the only correct stop condition.
+            measure_manager_inner_loop(experiment, max_cycle, request_queue,
+                                       response_queue, queued_snapshots,
+                                       retry_counts)
             time.sleep(MEASUREMENT_LOOP_WAIT)
 
         # Trials have ended; drain any last worker responses so exhausted
