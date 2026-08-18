@@ -14,6 +14,7 @@
 """Module for measuring snapshots from trial runners."""
 
 import collections
+import datetime
 import gc
 import glob
 import gzip
@@ -125,7 +126,8 @@ def _get_unmeasured_first_snapshots(
 
 
 SnapshotWithTime = collections.namedtuple(
-    'SnapshotWithTime', ['fuzzer', 'benchmark', 'trial_id', 'time'])
+    'SnapshotWithTime',
+    ['fuzzer', 'benchmark', 'trial_id', 'time', 'time_started'])
 
 
 def _query_measured_latest_snapshots(experiment: str):
@@ -136,14 +138,34 @@ def _query_measured_latest_snapshots(experiment: str):
     # The order of these columns must correspond to the fields in
     # SnapshotWithTime.
     columns = (models.Trial.fuzzer, models.Trial.benchmark,
-               models.Snapshot.trial_id, latest_time_column)
+               models.Snapshot.trial_id, latest_time_column,
+               models.Trial.time_started)
     experiment_filter = models.Snapshot.trial.has(experiment=experiment)
     group_by_columns = (models.Snapshot.trial_id, models.Trial.benchmark,
-                        models.Trial.fuzzer)
+                        models.Trial.fuzzer, models.Trial.time_started)
     with db_utils.session_scope() as session:
         snapshots_query = session.query(*columns).join(
             models.Trial).filter(experiment_filter).group_by(*group_by_columns)
         return (SnapshotWithTime(*snapshot) for snapshot in snapshots_query)
+
+
+def _is_cycle_due(snapshot: SnapshotWithTime, cycle: int) -> bool:
+    """Returns whether real time elapsed since |snapshot|'s trial started has
+    reached |cycle|'s nominal timestamp.
+
+    Recording a snapshot - including a zero-coverage one written after
+    exhausting retries, see consume_snapshots_from_response_queue - is what
+    unlocks the next cycle of a trial. Without this check, a single early miss
+    cascades: the next cycle is attempted seconds later, fails too because its
+    corpus archive doesn't exist yet either, and unlocks the cycle after it,
+    running the trial's whole timeline down to zero-coverage snapshots within
+    minutes.
+    """
+    if snapshot.time_started is None:
+        return True
+    time_started = snapshot.time_started.replace(tzinfo=datetime.timezone.utc)
+    elapsed = (scheduler.datetime_now() - time_started).total_seconds()
+    return elapsed >= experiment_utils.get_cycle_time(cycle)
 
 
 def _get_unmeasured_next_snapshots(
@@ -162,6 +184,9 @@ def _get_unmeasured_next_snapshots(
         cycle = _time_to_cycle(snapshot_time)
         next_cycle = cycle + 1
         if next_cycle > max_cycle:
+            continue
+
+        if not _is_cycle_due(snapshot, next_cycle):
             continue
 
         snapshot_with_cycle = measurer_datatypes.SnapshotMeasureRequest(

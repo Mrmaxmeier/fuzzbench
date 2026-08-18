@@ -57,6 +57,12 @@ def db_experiment(experiment_config, db):
     yield
 
 
+def _utc_now():
+    """Returns the current time as the database stores it: naive UTC. The
+    local time isn't the same thing anywhere but in UTC."""
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
+
 def test_get_unmeasured_snapshots_executes_against_db(experiment_config,
                                                       db_experiment):
     """Tests that the snapshot queries actually execute. These run only inside
@@ -64,10 +70,16 @@ def test_get_unmeasured_snapshots_executes_against_db(experiment_config,
     changes -- a string passed to joinedload() survived the 2.x upgrade and
     only failed once the measurer ran for real."""
     experiment_name = experiment_config['experiment']
+    # Started long enough ago that cycle 1 is already due below - a snapshot
+    # only unlocks the next cycle once real time has actually reached it (see
+    # _get_unmeasured_next_snapshots), so a trial started "now" would not
+    # have cycle 1 due yet.
+    long_ago = _utc_now() - datetime.timedelta(
+        seconds=experiment_utils.get_snapshot_seconds() + 1)
     trial = models.Trial(fuzzer=FUZZER,
                          benchmark=BENCHMARK,
                          experiment=experiment_name,
-                         time_started=datetime.datetime.now())
+                         time_started=long_ago)
     db_utils.add_all([trial])
 
     # A started trial with no snapshots yet is unmeasured, at cycle 0.
@@ -85,6 +97,32 @@ def test_get_unmeasured_snapshots_executes_against_db(experiment_config,
     snapshots = measure_manager.get_unmeasured_snapshots(experiment_name,
                                                          max_cycle=10)
     assert [(s.trial_id, s.cycle) for s in snapshots] == [(trial.id, 1)]
+
+
+def test_get_unmeasured_snapshots_next_cycle_not_due_yet(
+        experiment_config, db_experiment):
+    """Tests that a trial's next cycle is NOT queued for measurement until real
+    wall-clock time actually reaches it. Without this gate, a zero-coverage
+    fallback snapshot immediately unlocks the next cycle, cascading through the
+    trial's entire remaining timeline within seconds."""
+    experiment_name = experiment_config['experiment']
+    trial = models.Trial(fuzzer=FUZZER,
+                         benchmark=BENCHMARK,
+                         experiment=experiment_name,
+                         time_started=_utc_now())
+    db_utils.add_all([trial])
+    db_utils.add_all([
+        models.Snapshot(time=0,
+                        trial_id=trial.id,
+                        edges_covered=1,
+                        fuzzer_stats={})
+    ])
+
+    # The trial just started, so cycle 1 (due only after get_snapshot_seconds
+    # elapses) must not be queued yet.
+    snapshots = measure_manager.get_unmeasured_snapshots(experiment_name,
+                                                         max_cycle=10)
+    assert not snapshots
 
 
 def test_get_current_coverage(fs, experiment):
