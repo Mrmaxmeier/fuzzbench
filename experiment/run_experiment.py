@@ -469,6 +469,15 @@ class Dispatcher:
             # anyway.
             *(['-ti'] if sys.stdin.isatty() else []),
             '--rm',
+            # Podman caps new containers at 2048 pids. Every trial spawns a
+            # `docker run` and a `docker logs -f` client inside this container,
+            # both Go binaries needing several OS threads just to start, so at
+            # dozens to hundreds of concurrent trials most of them abort with
+            # "pthread_create failed: Resource temporarily unavailable" before
+            # ever reaching the container engine's API - and those trials
+            # silently never get a container. --runners-cpus/--measurers-cpus
+            # don't help; they bound CPU shares, not this pids ceiling.
+            '--pids-limit=-1',
             '-v',
             '/var/run/docker.sock:/var/run/docker.sock',
             '-v',
