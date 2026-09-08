@@ -41,11 +41,26 @@ class MeasureWorker:
         return request
 
     def put_result_in_response_queue(
-            self, measured_snapshot: Optional[Snapshot],
-            request: measurer_datatypes.SnapshotMeasureRequest):
+            self,
+            measured_snapshot: Optional[Snapshot],
+            request: measurer_datatypes.SnapshotMeasureRequest,
+            corpus_not_ready: bool = False):
+        """Reports the outcome of |request| on the response queue.
+
+        A measurement that could not run because the corpus archive has not
+        been synced yet is reported as a NotReadyRequest rather than a
+        RetryRequest: it is the expected state early in a cycle and must not
+        spend the small budget reserved for real failures.
+        """
         if measured_snapshot:
             logger.info('Put measured snapshot in response_queue')
             self.response_queue.put(measured_snapshot)
+        elif corpus_not_ready:
+            self.response_queue.put(
+                measurer_datatypes.NotReadyRequest(request.fuzzer,
+                                                   request.benchmark,
+                                                   request.trial_id,
+                                                   request.cycle))
         else:
             retry_request = measurer_datatypes.RetryRequest(
                 request.fuzzer, request.benchmark, request.trial_id,
@@ -69,10 +84,13 @@ class MeasureWorker:
                 request.fuzzer, request.benchmark, request.trial_id,
                 request.cycle)
             measured_snapshot = None
+            corpus_not_ready = False
             try:
                 measured_snapshot = measure_manager.measure_snapshot_coverage(
                     request.fuzzer, request.benchmark, request.trial_id,
                     request.cycle, self.region_coverage)
+            except measure_manager.CorpusNotReadyError:
+                corpus_not_ready = True
             except Exception:  # pylint: disable=broad-except
                 logger.error('Error measuring cycle.',
                              extras={
@@ -81,5 +99,6 @@ class MeasureWorker:
                                  'trial_id': str(request.trial_id),
                                  'cycle': str(request.cycle),
                              })
-            self.put_result_in_response_queue(measured_snapshot, request)
+            self.put_result_in_response_queue(measured_snapshot, request,
+                                              corpus_not_ready)
             time.sleep(MEASUREMENT_TIMEOUT)

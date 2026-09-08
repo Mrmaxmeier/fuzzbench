@@ -15,6 +15,7 @@
 import datetime
 import os
 import shutil
+import time
 from unittest import mock
 import queue
 
@@ -455,31 +456,83 @@ def test_consume_retry_type_from_response_queue():
     snapshot_identifier = (TRIAL_NUM, CYCLE)
     response_queue.put(retry_request_object)
     queued_snapshots_set = set([snapshot_identifier])
-    retry_counts = {}
+    attempt_state = {}
     snapshots = measure_manager.consume_snapshots_from_response_queue(
-        response_queue, queued_snapshots_set, retry_counts)
+        response_queue, queued_snapshots_set, attempt_state)
     assert not snapshots
     assert len(queued_snapshots_set) == 0
-    assert retry_counts[snapshot_identifier] == 1
+    assert attempt_state[snapshot_identifier].failures == 1
 
 
 def test_consume_retry_gives_up_after_num_retries():
-    """After NUM_RETRIES failures, a zero-coverage snapshot is recorded and the
+    """After NUM_RETRIES failures, a placeholder snapshot is recorded and the
     cycle stays queued so it is not retried again."""
     response_queue = queue.Queue()
     snapshot_identifier = (TRIAL_NUM, CYCLE)
     queued_snapshots_set = {snapshot_identifier}
-    retry_counts = {snapshot_identifier: measure_manager.NUM_RETRIES - 1}
+    state = measure_manager.AttemptState()
+    state.failures = measure_manager.NUM_RETRIES - 1
+    attempt_state = {snapshot_identifier: state}
     response_queue.put(
         measurer_datatypes.RetryRequest('fuzzer', 'benchmark', TRIAL_NUM,
                                         CYCLE))
     snapshots = measure_manager.consume_snapshots_from_response_queue(
-        response_queue, queued_snapshots_set, retry_counts)
+        response_queue, queued_snapshots_set, attempt_state)
     assert len(snapshots) == 1
     assert snapshots[0].trial_id == TRIAL_NUM
-    assert snapshots[0].edges_covered == 0
     assert snapshot_identifier in queued_snapshots_set
-    assert retry_counts[snapshot_identifier] == measure_manager.NUM_RETRIES
+    assert attempt_state[snapshot_identifier].failures == (
+        measure_manager.NUM_RETRIES)
+
+
+def test_consume_not_ready_does_not_spend_the_retry_budget():
+    """A corpus archive that has not been synced yet is not a failure. The
+    cycle is re-queued and no failure is counted against it, however many times
+    it comes back, because the measurer asks for every cycle before the runner
+    has uploaded it."""
+    response_queue = queue.Queue()
+    snapshot_identifier = (TRIAL_NUM, CYCLE)
+    queued_snapshots_set = {snapshot_identifier}
+    attempt_state = {}
+    for _ in range(measure_manager.NUM_RETRIES * 5):
+        queued_snapshots_set.add(snapshot_identifier)
+        response_queue.put(
+            measurer_datatypes.NotReadyRequest('fuzzer', 'benchmark', TRIAL_NUM,
+                                               CYCLE))
+        snapshots = measure_manager.consume_snapshots_from_response_queue(
+            response_queue, queued_snapshots_set, attempt_state)
+        assert not snapshots
+        assert snapshot_identifier not in queued_snapshots_set
+
+    assert attempt_state[snapshot_identifier].failures == 0
+
+
+def test_consume_not_ready_gives_up_once_the_corpus_is_overdue():
+    """A corpus that has not arrived within the wait window is written off, so
+    a trial whose runner died does not stall its timeline forever."""
+    response_queue = queue.Queue()
+    snapshot_identifier = (TRIAL_NUM, CYCLE)
+    queued_snapshots_set = {snapshot_identifier}
+    state = measure_manager.AttemptState()
+    state.first_attempt_time = (time.time() -
+                                measure_manager._get_corpus_wait_seconds() - 1)  # pylint: disable=protected-access
+    attempt_state = {snapshot_identifier: state}
+    response_queue.put(
+        measurer_datatypes.NotReadyRequest('fuzzer', 'benchmark', TRIAL_NUM,
+                                           CYCLE))
+    snapshots = measure_manager.consume_snapshots_from_response_queue(
+        response_queue, queued_snapshots_set, attempt_state)
+    assert len(snapshots) == 1
+    assert snapshots[0].trial_id == TRIAL_NUM
+    assert snapshot_identifier in queued_snapshots_set
+
+
+def test_corpus_wait_covers_more_than_a_few_loop_passes():
+    """The wait for a corpus has to cover container startup, which is minutes,
+    not the ~30 seconds that three MEASUREMENT_LOOP_WAIT passes allow."""
+    wait = measure_manager._get_corpus_wait_seconds()  # pylint: disable=protected-access
+    assert wait > measure_manager.NUM_RETRIES * measure_manager.MEASUREMENT_LOOP_WAIT
+    assert wait >= 2 * experiment_utils.get_snapshot_seconds()
 
 
 def test_consume_snapshot_type_from_response_queue():

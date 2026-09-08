@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for measure_worker.py."""
-import multiprocessing
+import queue
+import threading
+
 import pytest
 
 from database.models import Snapshot
+from experiment.measurer import measure_manager
 from experiment.measurer import measure_worker
 import experiment.measurer.datatypes as measurer_datatypes
 
@@ -23,8 +26,11 @@ import experiment.measurer.datatypes as measurer_datatypes
 @pytest.fixture
 def local_measure_worker():
     """Fixture for instantiating a local measure worker object"""
-    request_queue = multiprocessing.Queue()
-    response_queue = multiprocessing.Queue()
+    # Plain queues rather than multiprocessing ones: the worker only gets and
+    # puts, and test_measure_manager notes that multiprocessing queues make
+    # these tests flaky.
+    request_queue = queue.Queue()
+    response_queue = queue.Queue()
     region_coverage = False
     config = {
         'request_queue': request_queue,
@@ -55,3 +61,58 @@ def test_put_retry_in_response_queue(local_measure_worker):  # pylint: disable=r
     response_queue = local_measure_worker.response_queue
     assert response_queue.qsize() == 1
     assert isinstance(response_queue.get(), measurer_datatypes.RetryRequest)
+
+
+def test_put_not_ready_in_response_queue(local_measure_worker):  # pylint: disable=redefined-outer-name
+    """A cycle whose corpus has not been synced yet is reported as not ready,
+    not as a failure, so it does not spend the retry budget."""
+    request = measurer_datatypes.SnapshotMeasureRequest('fuzzer', 'benchmark',
+                                                        1, 0)
+    local_measure_worker.put_result_in_response_queue(None,
+                                                      request,
+                                                      corpus_not_ready=True)
+    response_queue = local_measure_worker.response_queue
+    assert response_queue.qsize() == 1
+    assert isinstance(response_queue.get(),
+                      measurer_datatypes.NotReadyRequest)
+
+
+def test_worker_loop_maps_missing_corpus_to_not_ready(local_measure_worker, monkeypatch):  # pylint: disable=redefined-outer-name
+    """The worker loop turns CorpusNotReadyError into a NotReadyRequest rather
+    than the RetryRequest every other failure produces."""
+
+    def raise_not_ready(*_args, **_kwargs):
+        raise measure_manager.CorpusNotReadyError('not synced yet')
+
+    monkeypatch.setattr(measure_manager, 'measure_snapshot_coverage',
+                        raise_not_ready)
+    monkeypatch.setattr(measure_worker, 'MEASUREMENT_TIMEOUT', 0)
+    local_measure_worker.request_queue.put(
+        measurer_datatypes.SnapshotMeasureRequest('fuzzer', 'benchmark', 1, 0))
+
+    # The loop never returns, so run it in a daemon thread and read the one
+    # response it produces for the single request queued above.
+    thread = threading.Thread(target=local_measure_worker.measure_worker_loop,
+                              daemon=True)
+    thread.start()
+    response = local_measure_worker.response_queue.get(timeout=10)
+    assert isinstance(response, measurer_datatypes.NotReadyRequest)
+
+
+def test_worker_loop_maps_other_errors_to_retry(local_measure_worker, monkeypatch):  # pylint: disable=redefined-outer-name
+    """Any other failure keeps the bounded-retry behaviour."""
+
+    def raise_other(*_args, **_kwargs):
+        raise ValueError('coverage run broke')
+
+    monkeypatch.setattr(measure_manager, 'measure_snapshot_coverage',
+                        raise_other)
+    monkeypatch.setattr(measure_worker, 'MEASUREMENT_TIMEOUT', 0)
+    local_measure_worker.request_queue.put(
+        measurer_datatypes.SnapshotMeasureRequest('fuzzer', 'benchmark', 1, 0))
+
+    thread = threading.Thread(target=local_measure_worker.measure_worker_loop,
+                              daemon=True)
+    thread.start()
+    response = local_measure_worker.response_queue.get(timeout=10)
+    assert isinstance(response, measurer_datatypes.RetryRequest)
