@@ -17,13 +17,16 @@ from common.crash_comparer import CrashComparer
 
 
 def test_identical_states_are_similar():
+    """Two identical crash states are the same crash."""
     assert CrashComparer('a\nb\n', 'a\nb\n').is_similar()
 
 
 def test_empty_states_are_not_similar():
+    """An empty crash state carries no evidence of similarity."""
     assert not CrashComparer('', 'a\n').is_similar()
     assert not CrashComparer('a\n', '').is_similar()
 
 
 def test_shared_frames_are_similar():
+    """Crash states sharing enough leading frames are the same crash."""
     assert CrashComparer('foo\nbar\nbaz\n', 'foo\nbar\nqux\n').is_similar()

@@ -13,12 +13,12 @@
 # limitations under the License.
 """Utility functions for data (frame) transformations."""
 import pandas as pd
-from common.crash_comparer import CrashComparer
 
 from analysis import stat_tests
 from common import benchmark_utils
 from common import environment
 from common import logs
+from common.crash_comparer import CrashComparer
 
 logger = logs.Logger()
 

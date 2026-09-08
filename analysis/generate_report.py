@@ -274,20 +274,21 @@ def main():
     parser = get_arg_parser()
     args = parser.parse_args()
 
-    generate_report(experiment_names=args.experiments,
-                    report_directory=args.report_dir,
-                    report_name=args.report_name,
-                    label_by_experiment=args.label_by_experiment,
-                    benchmarks=args.benchmarks,
-                    fuzzers=args.fuzzers,
-                    report_type=args.report_type,
-                    quick=args.quick,
-                    log_scale=args.log_scale,
-                    from_cached_data=args.from_cached_data,
-                    end_time=args.end_time,
-                    merge_with_clobber=args.merge_with_clobber,
-                    merge_with_clobber_nonprivate=args.merge_with_clobber_nonprivate,
-                    coverage_report=args.coverage_report)
+    generate_report(
+        experiment_names=args.experiments,
+        report_directory=args.report_dir,
+        report_name=args.report_name,
+        label_by_experiment=args.label_by_experiment,
+        benchmarks=args.benchmarks,
+        fuzzers=args.fuzzers,
+        report_type=args.report_type,
+        quick=args.quick,
+        log_scale=args.log_scale,
+        from_cached_data=args.from_cached_data,
+        end_time=args.end_time,
+        merge_with_clobber=args.merge_with_clobber,
+        merge_with_clobber_nonprivate=(args.merge_with_clobber_nonprivate),
+        coverage_report=args.coverage_report)
 
 
 if __name__ == '__main__':

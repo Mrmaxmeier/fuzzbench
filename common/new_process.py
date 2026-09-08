@@ -68,7 +68,7 @@ ProcessResult = collections.namedtuple('ProcessResult',
                                        ['retcode', 'output', 'timed_out'])
 
 
-def execute(  # pylint: disable=too-many-locals,too-many-branches
+def execute(  # pylint: disable=too-many-locals,too-many-branches,too-many-arguments
         command: List[str],
         *args,
         expect_zero: bool = True,

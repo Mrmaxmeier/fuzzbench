@@ -18,11 +18,12 @@ import logging
 import os
 import sys
 import traceback
+from typing import Dict
 
 # Disable this check since we have a bunch of non-constant globals in this file.
 # pylint: disable=invalid-name
 
-_default_extras = {}
+_default_extras: Dict[str, str] = {}
 
 LOG_LENGTH_LIMIT = 250 * 1000
 

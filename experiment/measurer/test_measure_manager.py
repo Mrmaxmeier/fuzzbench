@@ -411,8 +411,6 @@ def test_extract_corpus(archive_name, tmp_path):
     assert expected_corpus_files.issubset(set(os.listdir(tmp_path)))
 
 
-
-
 def test_consume_unmapped_type_from_response_queue():
     """Tests the scenario where an unmapped type is retrieved from the response
     queue. This scenario is not expected to happen, so in this case no snapshots
@@ -531,7 +529,9 @@ def test_corpus_wait_covers_more_than_a_few_loop_passes():
     """The wait for a corpus has to cover container startup, which is minutes,
     not the ~30 seconds that three MEASUREMENT_LOOP_WAIT passes allow."""
     wait = measure_manager._get_corpus_wait_seconds()  # pylint: disable=protected-access
-    assert wait > measure_manager.NUM_RETRIES * measure_manager.MEASUREMENT_LOOP_WAIT
+    budget = (measure_manager.NUM_RETRIES *
+              measure_manager.MEASUREMENT_LOOP_WAIT)
+    assert wait > budget
     assert wait >= 2 * experiment_utils.get_snapshot_seconds()
 
 
@@ -662,7 +662,7 @@ def test_no_skipped_cycles_in_the_normal_case(fs, environ):  # pylint: disable=u
     """Consecutive cycles have nothing to backfill."""
     snapshot_measurer = _make_snapshot_measurer(fs)
     snapshot_measurer.set_last_folded_cycle(4)
-    assert measure_manager._get_skipped_cycles(snapshot_measurer, 5) == []  # pylint: disable=protected-access
+    assert not measure_manager._get_skipped_cycles(snapshot_measurer, 5)  # pylint: disable=protected-access
 
 
 def test_skipped_cycles_are_backfilled(fs, environ):  # pylint: disable=unused-argument
@@ -688,7 +688,7 @@ def test_backfill_is_bounded(fs, environ):  # pylint: disable=unused-argument
 def test_no_backfill_before_anything_is_measured(fs, environ):  # pylint: disable=unused-argument
     """With no marker there is no evidence anything was skipped."""
     snapshot_measurer = _make_snapshot_measurer(fs)
-    assert measure_manager._get_skipped_cycles(snapshot_measurer, 6) == []  # pylint: disable=protected-access
+    assert not measure_manager._get_skipped_cycles(snapshot_measurer, 6)  # pylint: disable=protected-access
 
 
 def test_abandoned_cycle_carries_coverage_forward(experiment_config,
@@ -767,7 +767,6 @@ def test_finish_measuring_gives_up_eventually(mocked_inner_loop, db):
     """Work that never finishes must not hang the measurer forever."""
     mocked_inner_loop.return_value = True
     with mock.patch('time.sleep'), mock.patch(
-            'experiment.measurer.measure_manager.FINAL_MEASUREMENT_SECONDS',
-            0):
+            'experiment.measurer.measure_manager.FINAL_MEASUREMENT_SECONDS', 0):
         measure_manager.finish_measuring('experiment', 10, queue.Queue(),
                                          queue.Queue(), set(), {})

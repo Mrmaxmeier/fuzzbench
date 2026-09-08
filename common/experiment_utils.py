@@ -174,5 +174,6 @@ def get_trial_filestore_dir(fuzzer, benchmark, trial_id):
     """Returns the unique trial directory under experiment-folders in the
     experiment filestore for |fuzzer|, |benchmark|, and |trial_id|."""
     filestore = os.environ['EXPERIMENT_FILESTORE']
-    return posixpath.join(filestore, get_experiment_name(), 'experiment-folders',
+    return posixpath.join(filestore, get_experiment_name(),
+                          'experiment-folders',
                           get_trial_dir(fuzzer, benchmark, trial_id))

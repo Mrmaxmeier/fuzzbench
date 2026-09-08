@@ -228,13 +228,13 @@ def test_do_sync_unchanged(mocked_debug, trial_runner, fuzzer_module):
     """Test that do_sync records if there was no corpus change since last
     cycle."""
     trial_runner.cycle = 1337
-    expected_corpus_destination = (
-        '/bucket/experiment-name/experiment-folders/'
-        'benchmark-1-fuzzer_a/trial-1/corpus/'
-        'corpus-archive-1337.tar.gz')
+    expected_corpus_destination = ('/bucket/experiment-name/experiment-folders/'
+                                   'benchmark-1-fuzzer_a/trial-1/corpus/'
+                                   'corpus-archive-1337.tar.gz')
     # See test_save_corpus_archive: os.rename needs the temp file the real
     # `cp` would have written, which the Popen mock doesn't create.
-    with mock.patch('os.rename'), test_utils.mock_popen_ctx_mgr() as mocked_popen:
+    with mock.patch(
+            'os.rename'), test_utils.mock_popen_ctx_mgr() as mocked_popen:
         trial_runner.do_sync()
         assert len(mocked_popen.commands) == 2
         cp_command = mocked_popen.commands[0]
@@ -258,10 +258,9 @@ def test_do_sync_changed(mocked_execute, fs, trial_runner, fuzzer_module):
     corpus_file_name = 'corpus-file'
     fs.create_file(os.path.join(trial_runner.output_corpus, corpus_file_name))
     trial_runner.cycle = 1337
-    expected_corpus_destination = (
-        '/bucket/experiment-name/experiment-folders/'
-        'benchmark-1-fuzzer_a/trial-1/corpus/'
-        'corpus-archive-1337.tar.gz')
+    expected_corpus_destination = ('/bucket/experiment-name/experiment-folders/'
+                                   'benchmark-1-fuzzer_a/trial-1/corpus/'
+                                   'corpus-archive-1337.tar.gz')
     # See test_save_corpus_archive: os.rename needs the temp file the real
     # `cp` would have written, which the execute() mock doesn't create.
     with mock.patch('os.rename'):
@@ -279,7 +278,7 @@ def test_do_sync_changed(mocked_execute, fs, trial_runner, fuzzer_module):
         ('/bucket/experiment-name/experiment-folders/'
          'benchmark-1-fuzzer_a/trial-1/results')
     ],
-                                                          expect_zero=True)
+                                                         expect_zero=True)
     # Archives should get deleted after syncing.
     archives = os.listdir(trial_runner.corpus_archives_dir)
     assert len(archives) == 0
@@ -319,8 +318,8 @@ class TestIntegrationRunner:
         test_experiment_bucket = os.environ['TEST_EXPERIMENT_FILESTORE']
         experiment = 'integration-test-experiment'
         filestore_directory = posixpath.join(test_experiment_bucket, experiment,
-                                       'experiment-folders',
-                                       f'{benchmark}-{fuzzer}', 'trial-1')
+                                             'experiment-folders',
+                                             f'{benchmark}-{fuzzer}', 'trial-1')
         filestore_utils.rm(filestore_directory, force=True)
         # Add fuzzer directory to make it easy to run fuzzer.py in local
         # configuration.
@@ -346,7 +345,8 @@ class TestIntegrationRunner:
                             return_value=max_total_time / 10):
                 runner.main()
 
-        filestore_corpus_directory = posixpath.join(filestore_directory, 'corpus')
+        filestore_corpus_directory = posixpath.join(filestore_directory,
+                                                    'corpus')
         snapshots = filestore_utils.ls(filestore_corpus_directory)
 
         assert len(snapshots) >= 2

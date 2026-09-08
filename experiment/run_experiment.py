@@ -138,28 +138,17 @@ def read_and_validate_experiment_config(config_filename: str) -> Dict:
 
     # Requirement of each config field.
     config_requirements = {
-        'experiment_filestore':
-            Requirement(True, str, True, '/'),
-        'report_filestore':
-            Requirement(True, str, True, '/'),
-        'docker_registry':
-            Requirement(True, str, True, ''),
-        'trials':
-            Requirement(True, int, False, ''),
-        'max_total_time':
-            Requirement(True, int, False, ''),
-        'snapshot_period':
-            Requirement(False, int, False, ''),
-        'local_experiment':
-            Requirement(False, bool, False, ''),
-        'private':
-            Requirement(False, bool, False, ''),
-        'merge_with_nonprivate':
-            Requirement(False, bool, False, ''),
-        'runner_num_cpu_cores':
-            Requirement(False, int, False, ''),
-        'micro_experiment':
-            Requirement(False, bool, False, ''),
+        'experiment_filestore': Requirement(True, str, True, '/'),
+        'report_filestore': Requirement(True, str, True, '/'),
+        'docker_registry': Requirement(True, str, True, ''),
+        'trials': Requirement(True, int, False, ''),
+        'max_total_time': Requirement(True, int, False, ''),
+        'snapshot_period': Requirement(False, int, False, ''),
+        'local_experiment': Requirement(False, bool, False, ''),
+        'private': Requirement(False, bool, False, ''),
+        'merge_with_nonprivate': Requirement(False, bool, False, ''),
+        'runner_num_cpu_cores': Requirement(False, int, False, ''),
+        'micro_experiment': Requirement(False, bool, False, ''),
     }
 
     all_params_valid = _validate_config_parameters(config, config_requirements)

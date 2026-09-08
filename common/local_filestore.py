@@ -86,7 +86,7 @@ def rm(  # pylint: disable=invalid-name
         command.insert(1, '-r')
     if force:
         command.insert(1, '-f')
-    return new_process.execute(command, expect_zero=(not force))
+    return new_process.execute(command, expect_zero=not force)
 
 
 def rsync(  # pylint: disable=too-many-arguments

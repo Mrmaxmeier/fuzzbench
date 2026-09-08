@@ -382,7 +382,8 @@ def test_image_digest_strips_podman_docker_shim_banner(monkeypatch):
 
     monkeypatch.setattr(image_resolver.new_process, 'execute', fake_execute)
     assert image_resolver._image_digest('gcr.io/fuzzbench/base-image:tag') == (
-        'sha256:a0cf22b8f44c0d79db33387017148e203696cb1f8884a6fb365a7c6dc6738507')
+        'sha256:a0cf22b8f44c0d79db33387017148e203696cb1f8884a6fb365a7c6dc673'
+        '8507')
 
 
 def test_image_digest_keeps_sha256_prefix(monkeypatch):
@@ -390,8 +391,7 @@ def test_image_digest_keeps_sha256_prefix(monkeypatch):
 
     def fake_execute(command, *args, **kwargs):
         del command, args, kwargs
-        return new_process.ProcessResult(
-            0, 'sha256:' + 'ab' * 32 + '\n', False)
+        return new_process.ProcessResult(0, 'sha256:' + 'ab' * 32 + '\n', False)
 
     monkeypatch.setattr(image_resolver.new_process, 'execute', fake_execute)
     assert image_resolver._image_digest('ref') == 'sha256:' + 'ab' * 32

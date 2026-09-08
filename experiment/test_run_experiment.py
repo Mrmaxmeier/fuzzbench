@@ -49,16 +49,11 @@ class TestReadAndValdiateExperimentConfig(unittest.TestCase):
     def setUp(self):
         self.config_filename = 'config'
         self.config = {
-            'experiment_filestore':
-                '/tmp/experiment',
-            'report_filestore':
-                '/tmp/report',
-            'docker_registry':
-                'localhost/fuzzbench',
-            'trials':
-                10,
-            'max_total_time':
-                1000,
+            'experiment_filestore': '/tmp/experiment',
+            'report_filestore': '/tmp/report',
+            'docker_registry': 'localhost/fuzzbench',
+            'trials': 10,
+            'max_total_time': 1000,
         }
 
     @mock.patch('common.logs.error')
@@ -142,8 +137,9 @@ class TestReadAndValdiateExperimentConfig(unittest.TestCase):
         expected_config = self.config.copy()
         with mock.patch('common.yaml_utils.read') as mocked_read_yaml:
             mocked_read_yaml.return_value = self.config
-            validated_config = run_experiment.read_and_validate_experiment_config(
-                'config_file')
+            validated_config = (
+                run_experiment.read_and_validate_experiment_config(
+                    'config_file'))
         expected_config['local_experiment'] = True
         expected_config['snapshot_period'] = (
             experiment_utils.DEFAULT_SNAPSHOT_SECONDS)

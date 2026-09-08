@@ -245,11 +245,13 @@ class Plotter:
             'markerfacecolor': 'white'
         }
 
-        common_args = dict(y=column_of_interest,
-                           x='fuzzer',
-                           data=benchmark_snapshot_df,
-                           order=fuzzer_order,
-                           ax=axes)
+        common_args = {
+            'y': column_of_interest,
+            'x': 'fuzzer',
+            'data': benchmark_snapshot_df,
+            'order': fuzzer_order,
+            'ax': axes
+        }
 
         if violin:
             sns.violinplot(**common_args, palette=self._fuzzer_colors)

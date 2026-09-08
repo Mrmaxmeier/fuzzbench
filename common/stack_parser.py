@@ -29,16 +29,17 @@ _ASAN_ERROR_RE = re.compile(
     r'ERROR: (?:HWAddressSanitizer|AddressSanitizer)[: ]*[ ]*'
     r'(?P<type>.*?) on (?:unknown address |address |)(?P<addr>0x[0-9a-fA-F]+)')
 _ASAN_ERROR_NO_ADDR_RE = re.compile(
-    r'ERROR: (?:HWAddressSanitizer|AddressSanitizer)[: ]*[ ]*(?P<type>[^(:;\n]+)')
+    r'ERROR: (?:HWAddressSanitizer|AddressSanitizer)'
+    r'[: ]*[ ]*(?P<type>[^(:;\n]+)')
 _UBSAN_RUNTIME_RE = re.compile(r'runtime error:\s+(.*)')
-_UBSAN_SUMMARY_RE = re.compile(
-    r'SUMMARY: UndefinedBehaviorSanitizer:\s+(\S+)')
+_UBSAN_SUMMARY_RE = re.compile(r'SUMMARY: UndefinedBehaviorSanitizer:\s+(\S+)')
 _LIBFUZZER_TIMEOUT_RE = re.compile(r'ERROR:\s*libFuzzer:\s*timeout',
                                    re.IGNORECASE)
-_OUT_OF_MEMORY_RE = re.compile(r'out of memory|Out of memory|allocator is '
-                               r'trying to allocate', re.IGNORECASE)
-_ACCESS_SIZE_RE = re.compile(
-    r'^(READ|WRITE)\s+of\s+size\s+(\d+)\s+at\s+0x', re.MULTILINE)
+_OUT_OF_MEMORY_RE = re.compile(
+    r'out of memory|Out of memory|allocator is '
+    r'trying to allocate', re.IGNORECASE)
+_ACCESS_SIZE_RE = re.compile(r'^(READ|WRITE)\s+of\s+size\s+(\d+)\s+at\s+0x',
+                             re.MULTILINE)
 _SEGV_ACCESS_RE = re.compile(
     r'The signal is caused by a (READ|WRITE) memory access')
 _FRAME_RE = re.compile(
@@ -47,7 +48,8 @@ _FRAME_RE = re.compile(
 
 # Frames that do not belong in crash_state (ClusterFuzz-compatible subset).
 _IGNORE_FUNCS = re.compile(
-    r'^(?:abort|exit|raise|tgkill|pthread_kill|main|__assert_|__asan|__sanitizer|'
+    r'^(?:abort|exit|raise|tgkill|pthread_kill|main|__assert_|__asan'
+    r'|__sanitizer|'
     r'__libc_start|start_thread|clone|Abort\(|SignalHandler|'
     r'fuzzer::|__Fuzzer::)')
 
@@ -66,13 +68,14 @@ class CrashInfo:
 class StackParser:
     """Parse sanitizer/libFuzzer stacktraces into CrashInfo."""
 
-    def __init__(self,
-                 symbolized=True,
-                 detect_ooms_and_hangs=True,
-                 detect_v8_runtime_errors=False,
-                 custom_stack_frame_ignore_regexes=None,
-                 fuzz_target=None,
-                 include_ubsan=True):
+    def __init__(  # pylint: disable=too-many-arguments
+            self,
+            symbolized=True,
+            detect_ooms_and_hangs=True,
+            detect_v8_runtime_errors=False,
+            custom_stack_frame_ignore_regexes=None,
+            fuzz_target=None,
+            include_ubsan=True):
         del detect_v8_runtime_errors, custom_stack_frame_ignore_regexes
         self.symbolized = symbolized
         self.detect_ooms_and_hangs = detect_ooms_and_hangs
@@ -116,7 +119,8 @@ class StackParser:
                 state = _refine_segv(state, stacktrace)
 
         elif self.include_ubsan and ('runtime error:' in stacktrace or
-                                     'UndefinedBehaviorSanitizer' in stacktrace):
+                                     'UndefinedBehaviorSanitizer'
+                                     in stacktrace):
             state.crash_type = _parse_ubsan_type(stacktrace)
 
         state.frames = _extract_state_frames(stacktrace)

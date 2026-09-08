@@ -260,8 +260,8 @@ def llvm_tool(name: str, coverage_binary: Optional[str] = None) -> str:
     llvm-tools/ directory (or for unit tests).
     """
     if coverage_binary:
-        sibling = os.path.join(
-            os.path.dirname(coverage_binary), 'llvm-tools', name)
+        sibling = os.path.join(os.path.dirname(coverage_binary), 'llvm-tools',
+                               name)
         if os.path.isfile(sibling) and os.access(sibling, os.X_OK):
             return sibling
     return name
@@ -302,9 +302,7 @@ def get_trial_ids(experiment: str, fuzzer: str, benchmark: str):
 
 def merge_profdata_files(src_files, dst_file, coverage_binary=None):
     """Uses llvm-profdata to merge |src_files| to |dst_file|."""
-    command = [
-        llvm_tool('llvm-profdata', coverage_binary), 'merge', '-sparse'
-    ]
+    command = [llvm_tool('llvm-profdata', coverage_binary), 'merge', '-sparse']
     command.extend(src_files)
     command.extend(['-o', dst_file])
     result = new_process.execute(command, expect_zero=False)

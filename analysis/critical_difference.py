@@ -44,15 +44,18 @@ def compute_cd(average_ranks, num_datasets, alpha='0.05'):
     q_values = _NEMENYI_Q[alpha]
     if k >= len(q_values):
         raise ValueError(
-            f'Nemenyi CD table supports at most {len(q_values) - 1} algorithms, '
-            f'got {k}.')
+            f'Nemenyi CD table supports at most {len(q_values) - 1} '
+            f'algorithms, got {k}.')
     return q_values[k] * math.sqrt(k * (k + 1) / (6.0 * num_datasets))
 
 
 def _longest_nonsignificant_pairs(sorted_ranks, cd):
-    """Return longest intervals of algorithms that are not significantly different."""
+    """Return longest intervals of algorithms that are not significantly
+    different."""
     n = len(sorted_ranks)
-    pairs = [(i, j) for i in range(n) for j in range(i + 1, n)
+    pairs = [(i, j)
+             for i in range(n)
+             for j in range(i + 1, n)
              if abs(sorted_ranks[i] - sorted_ranks[j]) <= cd]
 
     def is_maximal(pair):
@@ -66,8 +69,13 @@ def _longest_nonsignificant_pairs(sorted_ranks, cd):
     return [pair for pair in pairs if is_maximal(pair)]
 
 
-def graph_ranks(average_ranks, names, cd, reverse=False, width=6.0,
-                textspace=1.0):
+def graph_ranks(  # pylint: disable=too-many-arguments,too-many-locals
+        average_ranks,
+        names,
+        cd,
+        reverse=False,
+        width=6.0,
+        textspace=1.0):
     """Draw a critical-difference diagram on the current matplotlib figure.
 
     |average_ranks| and |names| are parallel sequences. Rank 1 is best unless
@@ -75,9 +83,7 @@ def graph_ranks(average_ranks, names, cd, reverse=False, width=6.0,
     """
     ranks = list(average_ranks)
     labels = list(names)
-    order = sorted(range(len(ranks)),
-                   key=lambda i: ranks[i],
-                   reverse=reverse)
+    order = sorted(range(len(ranks)), key=lambda i: ranks[i], reverse=reverse)
     sorted_ranks = [ranks[i] for i in order]
     sorted_names = [labels[i] for i in order]
 
@@ -121,8 +127,7 @@ def graph_ranks(average_ranks, names, cd, reverse=False, width=6.0,
     draw_line([(textspace, axis_y), (width - textspace, axis_y)], linewidth=0.7)
     for tick in list(np.arange(low, high, 0.5)) + [high]:
         size = 0.1 if tick == int(tick) else 0.05
-        draw_line([(rank_x(tick), axis_y - size / 2),
-                   (rank_x(tick), axis_y)],
+        draw_line([(rank_x(tick), axis_y - size / 2), (rank_x(tick), axis_y)],
                   linewidth=0.7)
     for tick in range(low, high + 1):
         draw_text(rank_x(tick),

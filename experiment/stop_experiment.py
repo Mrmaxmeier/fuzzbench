@@ -27,7 +27,8 @@ DISPATCHER_CONTAINER_NAME = 'dispatcher-container'
 
 def stop_experiment(experiment_name, experiment_config_filename):
     """Stop the experiment specified by |experiment_config_filename|."""
-    del experiment_name  # Local experiments use a fixed dispatcher container name.
+    # Local experiments use a fixed dispatcher container name.
+    del experiment_name
     yaml_utils.read(experiment_config_filename)
 
     logger.info(

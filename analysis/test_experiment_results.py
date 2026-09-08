@@ -67,4 +67,5 @@ def test_report_templates_do_not_use_removed_styler_api():
             contents = file_handle.read()
         if re.search(r'_table\s*\.\s*render\s*\(', contents):
             offenders.append(filename)
-    assert not offenders, f'Templates using removed Styler.render(): {offenders}'
+    assert not offenders, (
+        f'Templates using removed Styler.render(): {offenders}')

@@ -37,12 +37,17 @@ class ExperimentResults:  # pylint: disable=too-many-instance-attributes
 
     # Summary table style
     _SUMMARY_TABLE_STYLE = [
-        dict(selector='td, th',
-             props=[('width', '25px'), ('padding', '7px 5px')]),
-        dict(selector='th.col_heading',
-             props=[('max-width', '25px'), ('overflow', 'visible'),
-                    ('transform-origin', 'bottom left'),
-                    ('transform', 'translateX(20px) rotate(-45deg)')])
+        {
+            'selector': 'td, th',
+            'props': [('width', '25px'), ('padding', '7px 5px')]
+        },
+        {
+            'selector':
+                'th.col_heading',
+            'props': [('max-width', '25px'), ('overflow', 'visible'),
+                      ('transform-origin', 'bottom left'),
+                      ('transform', 'translateX(20px) rotate(-45deg)')]
+        },
     ]
 
     def __init__(  # pylint: disable=too-many-arguments

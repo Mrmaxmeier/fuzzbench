@@ -22,6 +22,9 @@ from experiment.measurer import measure_manager
 from experiment.measurer import measure_worker
 import experiment.measurer.datatypes as measurer_datatypes
 
+# Fixtures are referenced by name as parameters, which shadows them by design.
+# pylint: disable=redefined-outer-name
+
 
 @pytest.fixture
 def local_measure_worker():
@@ -40,7 +43,7 @@ def local_measure_worker():
     return measure_worker.MeasureWorker(config)
 
 
-def test_put_snapshot_in_response_queue(local_measure_worker):  # pylint: disable=redefined-outer-name
+def test_put_snapshot_in_response_queue(local_measure_worker):
     """Tests the scenario where measure_snapshot is not None, so snapshot is put
     in response_queue"""
     request = measurer_datatypes.SnapshotMeasureRequest('fuzzer', 'benchmark',
@@ -52,7 +55,7 @@ def test_put_snapshot_in_response_queue(local_measure_worker):  # pylint: disabl
     assert isinstance(response_queue.get(), Snapshot)
 
 
-def test_put_retry_in_response_queue(local_measure_worker):  # pylint: disable=redefined-outer-name
+def test_put_retry_in_response_queue(local_measure_worker):
     """Tests the scenario where measure_snapshot is None, so task needs to be
     retried"""
     request = measurer_datatypes.RetryRequest('fuzzer', 'benchmark', 1, 0)
@@ -63,7 +66,7 @@ def test_put_retry_in_response_queue(local_measure_worker):  # pylint: disable=r
     assert isinstance(response_queue.get(), measurer_datatypes.RetryRequest)
 
 
-def test_put_not_ready_in_response_queue(local_measure_worker):  # pylint: disable=redefined-outer-name
+def test_put_not_ready_in_response_queue(local_measure_worker):
     """A cycle whose corpus has not been synced yet is reported as not ready,
     not as a failure, so it does not spend the retry budget."""
     request = measurer_datatypes.SnapshotMeasureRequest('fuzzer', 'benchmark',
@@ -73,11 +76,11 @@ def test_put_not_ready_in_response_queue(local_measure_worker):  # pylint: disab
                                                       corpus_not_ready=True)
     response_queue = local_measure_worker.response_queue
     assert response_queue.qsize() == 1
-    assert isinstance(response_queue.get(),
-                      measurer_datatypes.NotReadyRequest)
+    assert isinstance(response_queue.get(), measurer_datatypes.NotReadyRequest)
 
 
-def test_worker_loop_maps_missing_corpus_to_not_ready(local_measure_worker, monkeypatch):  # pylint: disable=redefined-outer-name
+def test_worker_loop_maps_missing_corpus_to_not_ready(local_measure_worker,
+                                                      monkeypatch):
     """The worker loop turns CorpusNotReadyError into a NotReadyRequest rather
     than the RetryRequest every other failure produces."""
 
@@ -99,7 +102,8 @@ def test_worker_loop_maps_missing_corpus_to_not_ready(local_measure_worker, monk
     assert isinstance(response, measurer_datatypes.NotReadyRequest)
 
 
-def test_worker_loop_maps_other_errors_to_retry(local_measure_worker, monkeypatch):  # pylint: disable=redefined-outer-name
+def test_worker_loop_maps_other_errors_to_retry(local_measure_worker,
+                                                monkeypatch):
     """Any other failure keeps the bounded-retry behaviour."""
 
     def raise_other(*_args, **_kwargs):

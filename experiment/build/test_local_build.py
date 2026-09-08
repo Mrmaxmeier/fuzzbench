@@ -39,10 +39,12 @@ def test_init_resolver_scopes_to_requested_pairs():
     """init_resolver builds the image graph for the given fuzzers/benchmarks."""
     with mock.patch('experiment.build.docker_images.get_images_to_build',
                     return_value={'base-image': {}}) as mocked_get:
-        with mock.patch('experiment.build.image_resolver.Resolver') as mocked_resolver:
-            local_build.init_resolver(['libfuzzer'], ['zlib_zlib_uncompress_fuzzer'])
-            mocked_get.assert_called_once_with(
-                ['libfuzzer'], ['zlib_zlib_uncompress_fuzzer'])
+        with mock.patch(
+                'experiment.build.image_resolver.Resolver') as mocked_resolver:
+            local_build.init_resolver(['libfuzzer'],
+                                      ['zlib_zlib_uncompress_fuzzer'])
+            mocked_get.assert_called_once_with(['libfuzzer'],
+                                               ['zlib_zlib_uncompress_fuzzer'])
             assert local_build.get_resolver() is mocked_resolver.return_value
 
 

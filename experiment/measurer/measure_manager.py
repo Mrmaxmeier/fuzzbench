@@ -169,7 +169,7 @@ def _query_measured_latest_snapshots(experiment: str):
     """Returns a generator of a SnapshotWithTime representing a snapshot that is
     the first snapshot for their trial. The trials are trials in
     |experiment|."""
-    latest_time_column = func.max(models.Snapshot.time)
+    latest_time_column = func.max(models.Snapshot.time)  # pylint: disable=assignment-from-no-return
     # The order of these columns must correspond to the fields in
     # SnapshotWithTime.
     columns = (models.Trial.fuzzer, models.Trial.benchmark,
@@ -595,7 +595,8 @@ def measure_snapshot_coverage(  # pylint: disable=too-many-locals
         os.makedirs(coverage_archive_dir)
 
     if not os.path.exists(snapshot_measurer.cov_summary_file):
-        snapshot_logger.warning('Coverage summary json not found for cycle: %d.', cycle)
+        snapshot_logger.warning(
+            'Coverage summary json not found for cycle: %d.', cycle)
         return None
 
     with gzip.open(str(coverage_archive_zipped), 'wb') as compressed:
@@ -791,8 +792,7 @@ def consume_snapshots_from_response_queue(
         if is_retry:
             logger.info(
                 'Rescheduling task for trial %s and cycle %s '
-                '(attempt %d/%d)', trial_id, cycle, state.failures,
-                NUM_RETRIES)
+                '(attempt %d/%d)', trial_id, cycle, state.failures, NUM_RETRIES)
         else:
             logger.debug(
                 'Corpus for trial %s cycle %s has not arrived yet; will try '
@@ -800,12 +800,13 @@ def consume_snapshots_from_response_queue(
     return measured_snapshots
 
 
-def measure_manager_inner_loop(experiment: str,
-                               max_cycle: int,
-                               request_queue,
-                               response_queue,
-                               queued_snapshots,
-                               attempt_state=None):
+def measure_manager_inner_loop(  # pylint: disable=too-many-arguments
+        experiment: str,
+        max_cycle: int,
+        request_queue,
+        response_queue,
+        queued_snapshots,
+        attempt_state=None):
     """Reads from database to determine which snapshots needs measuring. Write
     measurements tasks to request queue, get results from response queue, and
     write measured snapshots to database. Returns False if nothing was due to

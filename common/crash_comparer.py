@@ -26,12 +26,15 @@ def _levenshtein_distance(string_1, string_2):
     v0 = list(range(len(string_2) + 1))
     v1 = [None] * (len(string_2) + 1)
 
-    for i in range(len(string_1)):
+    # Index arithmetic is the algorithm here: v1[j + 1] and v0[j] are indexed
+    # off by one from the character being compared, so enumerate() over the
+    # strings would not line up.
+    for i in range(len(string_1)):  # pylint: disable=consider-using-enumerate
         v1[0] = i + 1
-        for j in range(len(string_2)):
+        for j in range(len(string_2)):  # pylint: disable=consider-using-enumerate
             cost = 0 if string_1[i] == string_2[j] else 1
             v1[j + 1] = min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost)
-        for j in range(len(v0)):
+        for j in range(len(v0)):  # pylint: disable=consider-using-enumerate
             v0[j] = v1[j]
 
     return v1[len(string_2)]
@@ -42,16 +45,16 @@ def _similarity_ratio(string_1, string_2):
     length_sum = len(string_1) + len(string_2)
     if length_sum == 0:
         return 1.0
-    return (length_sum - _levenshtein_distance(string_1, string_2)) / (
-        1.0 * length_sum)
+    return (length_sum -
+            _levenshtein_distance(string_1, string_2)) / (1.0 * length_sum)
 
 
 def longest_common_subsequence(first_frames, second_frames):
     """Count frames that match in order."""
     first_len = len(first_frames)
     second_len = len(second_frames)
-    solution = [[0 for _ in range(second_len + 1)]
-                for _ in range(first_len + 1)]
+    solution = [[0 for _ in range(second_len + 1)] for _ in range(first_len + 1)
+               ]
 
     for i in range(1, first_len + 1):
         for j in range(1, second_len + 1):
@@ -85,14 +88,15 @@ class CrashComparer:
         crash_state_lines_1 = self.crash_state_1.splitlines()
         crash_state_lines_2 = self.crash_state_2.splitlines()
 
-        if (longest_common_subsequence(crash_state_lines_1,
-                                       crash_state_lines_2) >=
-                self.SAME_FRAMES_THRESHOLD):
+        if (longest_common_subsequence(crash_state_lines_1, crash_state_lines_2)
+                >= self.SAME_FRAMES_THRESHOLD):
             return True
 
         lines_compared = 0
         similarity_ratio_sum = 0.0
-        for i in range(len(crash_state_lines_1)):
+        # Walks two lists in lockstep and stops at the shorter one, so the
+        # index is what is wanted rather than the element.
+        for i in range(len(crash_state_lines_1)):  # pylint: disable=consider-using-enumerate
             if i >= len(crash_state_lines_2):
                 break
             similarity_ratio_sum += _similarity_ratio(crash_state_lines_1[i],

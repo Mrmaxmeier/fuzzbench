@@ -131,7 +131,8 @@ def copy_coverage_binaries(benchmark, resolved):
     command = (
         'set -e; cd /out; '
         'mkdir -p llvm-tools; '
-        'cp "$(command -v llvm-profdata)" "$(command -v llvm-cov)" llvm-tools/; '
+        'cp "$(command -v llvm-profdata)" "$(command -v llvm-cov)" '
+        'llvm-tools/; '
         f'tar -czvf {coverage_build_archive_shared_dir_path} * /src /work')
     # Run the digest rather than the builder's mutable name. The binaries the
     # measurer scores coverage against have to come from the same image the

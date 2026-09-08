@@ -238,7 +238,9 @@ class TrialRunner:  # pylint: disable=too-many-instance-attributes
             trial_id = environment.get('TRIAL_ID')
             self.trial_filestore_dir = experiment_utils.get_trial_filestore_dir(
                 self.fuzzer, benchmark, trial_id)
-            filestore_utils.rm(self.trial_filestore_dir, force=True, parallel=True)
+            filestore_utils.rm(self.trial_filestore_dir,
+                               force=True,
+                               parallel=True)
         else:
             self.trial_filestore_dir = None
 
@@ -281,9 +283,8 @@ class TrialRunner:  # pylint: disable=too-many-instance-attributes
         # Ensure seeds are in output corpus.
         output_corpus = Path(self.output_corpus)
         if output_corpus.exists():
-            assert output_corpus.is_dir() and \
-                len(list(output_corpus.iterdir())) == 0, \
-                    f"Output corpus dir {output_corpus} must not contain any files!"
+            assert output_corpus.is_dir() and not list(output_corpus.iterdir(
+            )), f'Output corpus dir {output_corpus} must not contain any files!'
 
         seed_dir = output_corpus / 'fuzzbench_seeds'
         seed_dir.mkdir(parents=True, exist_ok=True)
@@ -418,8 +419,8 @@ class TrialRunner:  # pylint: disable=too-many-instance-attributes
             return
 
         basename = os.path.basename(archive)
-        filestore_path = posixpath.join(self.trial_filestore_dir, CORPUS_DIRNAME,
-                                        basename)
+        filestore_path = posixpath.join(self.trial_filestore_dir,
+                                        CORPUS_DIRNAME, basename)
 
         # Don't use parallel to avoid stability issues.
         filestore_utils.cp(archive, filestore_path)

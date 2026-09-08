@@ -44,7 +44,7 @@ def db_experiment(db):
 def test_get_fuzzers_changed_since_last_afl(_, db_experiment):
     """Tests that get_fuzzers_changed_since_last returns the correct
     result when a fuzzer has changed."""
-    changed_fuzzers = (experiment_changes.get_fuzzers_changed_since_last())
+    changed_fuzzers = experiment_changes.get_fuzzers_changed_since_last()
     assert 'afl' in changed_fuzzers
     assert 'fairfuzz' in changed_fuzzers
 

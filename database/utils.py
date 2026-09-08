@@ -24,7 +24,6 @@ engine = None
 session = None
 lock = None
 
-
 # How long a connection waits for another writer to release the database
 # before giving up with "database is locked". SQLite serializes writers, and
 # an experiment has at least two writer processes: the scheduler (in the
