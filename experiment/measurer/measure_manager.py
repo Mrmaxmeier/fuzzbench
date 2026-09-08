@@ -845,6 +845,45 @@ def measure_manager_inner_loop(experiment: str,
     return bool(unmeasured_snapshots)
 
 
+# How long to keep measuring after the last trial has ended. A trial's final
+# cycles only become measurable around the moment it stops, so cutting
+# measurement off the instant all_trials_ended flips loses them.
+FINAL_MEASUREMENT_SECONDS = 30 * 60
+
+
+def finish_measuring(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        experiment: str, max_cycle: int, request_queue, response_queue,
+        queued_snapshots, attempt_state):
+    """Keeps measuring until nothing is outstanding, after trials have ended.
+
+    all_trials_ended goes true as soon as the scheduler marks the last trial
+    ended, which is when its final cycles have only just been synced -- and
+    later still for anything a worker is measuring right then. Returning
+    immediately dropped all of it: requests sitting in the request queue were
+    never picked up, and only whatever happened to already be in the response
+    queue got written.
+    """
+    logger.info('Trials have ended; finishing outstanding measurements.')
+    deadline = time.time() + FINAL_MEASUREMENT_SECONDS
+    while time.time() < deadline:
+        outstanding = measure_manager_inner_loop(experiment, max_cycle,
+                                                 request_queue, response_queue,
+                                                 queued_snapshots,
+                                                 attempt_state)
+        # Nothing left unmeasured in the database, nothing queued for a worker
+        # and nothing waiting to be written. An in-flight measurement still
+        # counts as unmeasured, so it holds `outstanding` true until its result
+        # comes back.
+        if not outstanding and request_queue.empty() and response_queue.empty():
+            logger.info('All outstanding measurements finished.')
+            return
+        time.sleep(MEASUREMENT_LOOP_WAIT)
+
+    logger.warning(
+        'Gave up on outstanding measurements after %d seconds; some trials may '
+        'be missing their final cycles.', FINAL_MEASUREMENT_SECONDS)
+
+
 def measure_manager_loop(experiment: str,
                          max_total_time: int,
                          measurers_cpus=None,
@@ -893,14 +932,8 @@ def measure_manager_loop(experiment: str,
                                        attempt_state)
             time.sleep(MEASUREMENT_LOOP_WAIT)
 
-        # Trials have ended; drain any last worker responses so exhausted
-        # retries still get a sentinel snapshot written.
-        final_snapshots = consume_snapshots_from_response_queue(
-            response_queue, queued_snapshots, attempt_state)
-        if final_snapshots:
-            db_utils.add_all(final_snapshots)
-            logger.info('Drained %d final snapshots after trials ended.',
-                        len(final_snapshots))
+        finish_measuring(experiment, max_cycle, request_queue, response_queue,
+                         queued_snapshots, attempt_state)
         logger.info('All trials ended. Ending measure manager loop')
 
 

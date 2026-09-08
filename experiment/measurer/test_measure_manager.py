@@ -724,3 +724,50 @@ def test_abandoned_first_cycle_reports_zero(experiment_config, db_experiment):
     db_utils.add_all([trial])
 
     assert measure_manager._abandon_snapshot(trial.id, 0).edges_covered == 0
+
+
+def test_finish_measuring_returns_when_nothing_is_outstanding(db):
+    """With an empty database and empty queues there is nothing left to do."""
+    request_queue = queue.Queue()
+    response_queue = queue.Queue()
+    with mock.patch('time.sleep'):
+        measure_manager.finish_measuring('experiment', 10, request_queue,
+                                         response_queue, set(), {})
+
+
+@mock.patch('experiment.measurer.measure_manager.measure_manager_inner_loop')
+def test_finish_measuring_keeps_going_while_work_is_queued(
+        mocked_inner_loop, db):
+    """A request still sitting in the request queue when trials end must be
+    picked up, not dropped. Before this, the loop returned immediately and only
+    whatever was already in the response queue got written."""
+    request_queue = queue.Queue()
+    request_queue.put(
+        measurer_datatypes.SnapshotMeasureRequest(FUZZER, BENCHMARK, TRIAL_NUM,
+                                                  CYCLE))
+    response_queue = queue.Queue()
+
+    def drain_one_request(*_args, **_kwargs):
+        if not request_queue.empty():
+            request_queue.get()
+            return True
+        return False
+
+    mocked_inner_loop.side_effect = drain_one_request
+    with mock.patch('time.sleep'):
+        measure_manager.finish_measuring('experiment', 10, request_queue,
+                                         response_queue, set(), {})
+
+    assert mocked_inner_loop.call_count >= 2
+    assert request_queue.empty()
+
+
+@mock.patch('experiment.measurer.measure_manager.measure_manager_inner_loop')
+def test_finish_measuring_gives_up_eventually(mocked_inner_loop, db):
+    """Work that never finishes must not hang the measurer forever."""
+    mocked_inner_loop.return_value = True
+    with mock.patch('time.sleep'), mock.patch(
+            'experiment.measurer.measure_manager.FINAL_MEASUREMENT_SECONDS',
+            0):
+        measure_manager.finish_measuring('experiment', 10, queue.Queue(),
+                                         queue.Queue(), set(), {})
