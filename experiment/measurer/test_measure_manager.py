@@ -464,7 +464,7 @@ def test_consume_retry_type_from_response_queue():
     assert attempt_state[snapshot_identifier].failures == 1
 
 
-def test_consume_retry_gives_up_after_num_retries():
+def test_consume_retry_gives_up_after_num_retries(db):
     """After NUM_RETRIES failures, a placeholder snapshot is recorded and the
     cycle stays queued so it is not retried again."""
     response_queue = queue.Queue()
@@ -507,7 +507,7 @@ def test_consume_not_ready_does_not_spend_the_retry_budget():
     assert attempt_state[snapshot_identifier].failures == 0
 
 
-def test_consume_not_ready_gives_up_once_the_corpus_is_overdue():
+def test_consume_not_ready_gives_up_once_the_corpus_is_overdue(db):
     """A corpus that has not arrived within the wait window is written off, so
     a trial whose runner died does not stall its timeline forever."""
     response_queue = queue.Queue()
@@ -689,3 +689,38 @@ def test_no_backfill_before_anything_is_measured(fs, environ):  # pylint: disabl
     """With no marker there is no evidence anything was skipped."""
     snapshot_measurer = _make_snapshot_measurer(fs)
     assert measure_manager._get_skipped_cycles(snapshot_measurer, 6) == []  # pylint: disable=protected-access
+
+
+def test_abandoned_cycle_carries_coverage_forward(experiment_config,
+                                                  db_experiment):
+    """A cycle that cannot be measured records the trial's last known coverage,
+    not zero. Coverage is cumulative, and get_benchmark_snapshot compares
+    edges_covered at one time across fuzzers with nothing filtering
+    placeholders out, so a zero there reads as a real result."""
+    trial = models.Trial(fuzzer=FUZZER,
+                         benchmark=BENCHMARK,
+                         experiment=experiment_config['experiment'],
+                         time_started=datetime.datetime.now())
+    db_utils.add_all([trial])
+    db_utils.add_all([
+        models.Snapshot(time=0,
+                        trial_id=trial.id,
+                        edges_covered=1234,
+                        fuzzer_stats={})
+    ])
+
+    snapshot = measure_manager._abandon_snapshot(trial.id, 1)
+
+    assert snapshot.edges_covered == 1234
+    assert snapshot.time == experiment_utils.get_cycle_time(1)
+
+
+def test_abandoned_first_cycle_reports_zero(experiment_config, db_experiment):
+    """With no earlier snapshot there is nothing to carry forward."""
+    trial = models.Trial(fuzzer=FUZZER,
+                         benchmark=BENCHMARK,
+                         experiment=experiment_config['experiment'],
+                         time_started=datetime.datetime.now())
+    db_utils.add_all([trial])
+
+    assert measure_manager._abandon_snapshot(trial.id, 0).edges_covered == 0

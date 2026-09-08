@@ -695,18 +695,36 @@ class AttemptState:
                 self.first_attempt_time) >= _get_corpus_wait_seconds()
 
 
+def _get_last_edges_covered(trial_id: int) -> int:
+    """Returns the coverage of |trial_id|'s most recent snapshot, or 0 if it
+    has none."""
+    with db_utils.session_scope() as session:
+        row = session.query(models.Snapshot.edges_covered).filter(
+            models.Snapshot.trial_id == trial_id).order_by(
+                models.Snapshot.time.desc()).first()
+    return row[0] if row else 0
+
+
 def _abandon_snapshot(trial_id: int, cycle: int) -> models.Snapshot:
     """Returns the placeholder snapshot recorded for a cycle that could not be
     measured, which unblocks the trial's later cycles.
 
-    Note that this loses that cycle's coverage permanently, not just its data
-    point: corpus archives are incremental (see runner.archive_corpus) and the
-    measurer folds each one into a cumulative .profdata, so units that are
-    never extracted never contribute to any later cycle either.
+    It carries the trial's last known coverage forward rather than reporting
+    zero. Coverage is cumulative, so zero is not a conservative choice, it is a
+    wrong measurement: analysis.data_utils.get_benchmark_snapshot picks a
+    single time and compares edges_covered across fuzzers at it, with nothing
+    filtering placeholders out, so a zero there reads as "this fuzzer found
+    nothing". Carrying forward understates the cycle, which is the honest
+    direction, and keeps the curve monotonic.
+
+    Note that the cycle's own coverage is still lost, not merely undated:
+    archives are incremental and profdata is cumulative, so units never
+    extracted never contribute. measure_snapshot_coverage backfills a skipped
+    cycle when it can, which is the only thing that recovers them.
     """
     return models.Snapshot(time=experiment_utils.get_cycle_time(cycle),
                            trial_id=trial_id,
-                           edges_covered=0,
+                           edges_covered=_get_last_edges_covered(trial_id),
                            fuzzer_stats=None,
                            crashes=[])
 
