@@ -300,8 +300,27 @@ class SnapshotMeasurer(coverage_utils.TrialCoverage):  # pylint: disable=too-man
         self.cov_summary_file = os.path.join(self.report_dir,
                                              'cov_summary.json')
 
+        # Highest cycle whose corpus has been folded into profdata_file. Kept
+        # beside the profdata because that is exactly what it describes, and so
+        # it shares the profdata's lifetime.
+        self.folded_cycle_file = os.path.join(self.report_dir,
+                                              'folded-cycle.txt')
+
         # Use region coverage as coverage metric instead of branch (default)
         self.region_coverage = region_coverage
+
+    def get_last_folded_cycle(self):
+        """Returns the highest cycle whose corpus is in profdata_file, or None
+        if nothing has been folded in yet."""
+        try:
+            with open(self.folded_cycle_file, encoding='utf-8') as file_handle:
+                return int(file_handle.read().strip())
+        except (FileNotFoundError, ValueError):
+            return None
+
+    def set_last_folded_cycle(self, cycle: int):
+        """Records that every corpus up to |cycle| is in profdata_file."""
+        filesystem.write(self.folded_cycle_file, str(cycle))
 
     def get_profraw_files(self):
         """Return generated profraw files."""
@@ -475,6 +494,22 @@ def get_fuzzer_stats(stats_filestore_path):
     return json.loads(stats_str)
 
 
+# How far back to look for cycles whose corpus was never folded in. A trial
+# that has been unmeasurable for longer than this is not going to be rescued by
+# backfilling, and the work is not free.
+MAX_BACKFILL_CYCLES = 10
+
+
+def _get_skipped_cycles(snapshot_measurer, cycle: int) -> List[int]:
+    """Returns the cycles before |cycle| whose corpus is not in the trial's
+    cumulative profdata yet."""
+    last_folded = snapshot_measurer.get_last_folded_cycle()
+    if last_folded is None or last_folded >= cycle - 1:
+        return []
+    first = max(last_folded + 1, cycle - MAX_BACKFILL_CYCLES)
+    return list(range(first, cycle))
+
+
 def measure_snapshot_coverage(  # pylint: disable=too-many-locals
         fuzzer: str, benchmark: str, trial_num: int, cycle: int,
         region_coverage: bool) -> models.Snapshot:
@@ -493,18 +528,25 @@ def measure_snapshot_coverage(  # pylint: disable=too-many-locals
     measuring_start_time = time.time()
     snapshot_logger.info('Measuring cycle: %d.', cycle)
     this_time = experiment_utils.get_cycle_time(cycle)
-    corpus_archive_dst = os.path.join(
-        snapshot_measurer.trial_dir, 'corpus',
-        experiment_utils.get_corpus_archive_name(cycle))
-    corpus_archive_src = exp_path.filestore(corpus_archive_dst)
 
-    corpus_archive_dir = os.path.dirname(corpus_archive_dst)
+    corpus_archive_dir = os.path.join(snapshot_measurer.trial_dir, 'corpus')
     if not os.path.exists(corpus_archive_dir):
         os.makedirs(corpus_archive_dir)
 
-    if filestore_utils.cp(corpus_archive_src,
-                          corpus_archive_dst,
-                          expect_zero=False).retcode:
+    def fetch_corpus_archive(archive_cycle):
+        """Copies |archive_cycle|'s archive out of the filestore, returning
+        its local path or None if the filestore does not have it."""
+        destination = os.path.join(
+            corpus_archive_dir,
+            experiment_utils.get_corpus_archive_name(archive_cycle))
+        if filestore_utils.cp(exp_path.filestore(destination),
+                              destination,
+                              expect_zero=False).retcode:
+            return None
+        return destination
+
+    corpus_archive_dst = fetch_corpus_archive(cycle)
+    if corpus_archive_dst is None:
         # Not an error: the runner has not synced this cycle yet. Tell the
         # caller so it waits rather than spending a retry.
         raise CorpusNotReadyError(
@@ -516,11 +558,30 @@ def measure_snapshot_coverage(  # pylint: disable=too-many-locals
     # Don't keep corpus archives around longer than they need to be.
     os.remove(corpus_archive_dst)
 
+    # Fold in the corpora of any cycles that were abandoned before they could
+    # be measured. Archives are incremental (see runner.archive_corpus) and
+    # profdata is cumulative, so a cycle skipped here is otherwise lost from
+    # this trial's coverage for the rest of the run, not merely missing a data
+    # point. Each skipped cycle gets exactly one such attempt, because the
+    # marker below advances to |cycle| either way.
+    for skipped_cycle in _get_skipped_cycles(snapshot_measurer, cycle):
+        skipped_archive = fetch_corpus_archive(skipped_cycle)
+        if skipped_archive is None:
+            snapshot_logger.warning(
+                'Corpus for skipped cycle %d never arrived; its units are '
+                'lost from this trial.', skipped_cycle)
+            continue
+        snapshot_logger.info('Folding in the corpus of skipped cycle %d.',
+                             skipped_cycle)
+        snapshot_measurer.extract_corpus(skipped_archive)
+        os.remove(skipped_archive)
+
     # Run coverage on the new corpus units.
     snapshot_measurer.run_cov_new_units()
 
     # Generate profdata and transform it into json form.
     snapshot_measurer.generate_coverage_information(cycle)
+    snapshot_measurer.set_last_folded_cycle(cycle)
 
     # Compress and save the exported profdata snapshot.
     coverage_archive_zipped = os.path.join(

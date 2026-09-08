@@ -625,3 +625,67 @@ def test_measure_manager_inner_loop_writes_to_db(
     measure_manager.measure_manager_inner_loop('experiment', 1, request_queue,
                                                response_queue, set())
     mocked_add_all.assert_called_with([snapshot_model])
+
+
+def _make_snapshot_measurer(fs):
+    """Returns a SnapshotMeasurer with its report dir created."""
+    os.environ = {
+        'WORK': '/work',
+        'EXPERIMENT_FILESTORE': '/tmp/bucket',
+        'EXPERIMENT': 'experiment',
+    }
+    snapshot_measurer = measure_manager.SnapshotMeasurer(
+        FUZZER, BENCHMARK, TRIAL_NUM, SNAPSHOT_LOGGER, REGION_COVERAGE)
+    fs.create_dir(snapshot_measurer.report_dir)
+    return snapshot_measurer
+
+
+def test_folded_cycle_marker_roundtrips(fs, environ):  # pylint: disable=unused-argument
+    """The marker recording what is already in profdata survives, and reads
+    back as absent before anything has been folded in."""
+    snapshot_measurer = _make_snapshot_measurer(fs)
+    assert snapshot_measurer.get_last_folded_cycle() is None
+    snapshot_measurer.set_last_folded_cycle(7)
+    assert snapshot_measurer.get_last_folded_cycle() == 7
+
+
+def test_folded_cycle_marker_survives_measurement_dir_reset(fs, environ):  # pylint: disable=unused-argument
+    """initialize_measurement_dirs must not drop the marker, which describes
+    the cumulative profdata it also leaves in place."""
+    snapshot_measurer = _make_snapshot_measurer(fs)
+    snapshot_measurer.set_last_folded_cycle(3)
+    snapshot_measurer.initialize_measurement_dirs()
+    assert snapshot_measurer.get_last_folded_cycle() == 3
+
+
+def test_no_skipped_cycles_in_the_normal_case(fs, environ):  # pylint: disable=unused-argument
+    """Consecutive cycles have nothing to backfill."""
+    snapshot_measurer = _make_snapshot_measurer(fs)
+    snapshot_measurer.set_last_folded_cycle(4)
+    assert measure_manager._get_skipped_cycles(snapshot_measurer, 5) == []  # pylint: disable=protected-access
+
+
+def test_skipped_cycles_are_backfilled(fs, environ):  # pylint: disable=unused-argument
+    """A cycle that was abandoned is picked up by the next measured one, so its
+    units still reach the cumulative profdata."""
+    snapshot_measurer = _make_snapshot_measurer(fs)
+    snapshot_measurer.set_last_folded_cycle(4)
+    assert measure_manager._get_skipped_cycles(snapshot_measurer, 8) == [  # pylint: disable=protected-access
+        5, 6, 7
+    ]
+
+
+def test_backfill_is_bounded(fs, environ):  # pylint: disable=unused-argument
+    """A trial that has been unmeasurable for a long time does not trigger an
+    unbounded backfill."""
+    snapshot_measurer = _make_snapshot_measurer(fs)
+    snapshot_measurer.set_last_folded_cycle(0)
+    skipped = measure_manager._get_skipped_cycles(snapshot_measurer, 500)  # pylint: disable=protected-access
+    assert len(skipped) == measure_manager.MAX_BACKFILL_CYCLES
+    assert skipped[-1] == 499
+
+
+def test_no_backfill_before_anything_is_measured(fs, environ):  # pylint: disable=unused-argument
+    """With no marker there is no evidence anything was skipped."""
+    snapshot_measurer = _make_snapshot_measurer(fs)
+    assert measure_manager._get_skipped_cycles(snapshot_measurer, 6) == []  # pylint: disable=protected-access
