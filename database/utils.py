@@ -25,6 +25,41 @@ session = None
 lock = None
 
 
+# How long a connection waits for another writer to release the database
+# before giving up with "database is locked". SQLite serializes writers, and
+# an experiment has at least two writer processes: the scheduler (in the
+# dispatcher process) and the measurer (its own process). Python's sqlite3
+# default of five seconds is far too short for that -- a single lost race
+# raises out of measure_manager_inner_loop and kills measurement for the rest
+# of the run.
+SQLITE_BUSY_TIMEOUT_SECONDS = 5 * 60
+
+
+def _configure_sqlite(sql_engine):
+    """Puts |sql_engine|'s SQLite database in WAL mode and gives every
+    connection a long busy timeout.
+
+    WAL lets the measurer's readers run while the scheduler writes, instead of
+    the two locking each other out; it is a property of the file, so setting it
+    on any connection is enough. busy_timeout is per connection and has to be
+    set on each one, hence the connect hook.
+    """
+
+    @sqlalchemy.event.listens_for(sql_engine, 'connect')
+    def _set_sqlite_pragmas(dbapi_connection, _connection_record):  # pylint: disable=unused-variable
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute('PRAGMA journal_mode=WAL')
+            cursor.execute(
+                f'PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_SECONDS * 1000}')
+            # WAL already gives durability across process crashes; NORMAL only
+            # risks the most recent commits if the host itself dies, which is
+            # the right trade for a few hundred snapshot writes a minute.
+            cursor.execute('PRAGMA synchronous=NORMAL')
+        finally:
+            cursor.close()
+
+
 def initialize():
     """Initialize the database for use. Sets the database engine and session.
     Since this function is called when this module is imported one should rarely
@@ -36,6 +71,8 @@ def initialize():
 
     global engine
     engine = sqlalchemy.create_engine(database_url)
+    if engine.dialect.name == 'sqlite':
+        _configure_sqlite(engine)
     global session
     Session = sqlalchemy.orm.sessionmaker(bind=engine)
     session = Session()
