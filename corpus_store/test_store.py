@@ -308,3 +308,24 @@ def test_lock_serializes_a_read_modify_write(tmp_path, store):
     assert sorted(os.listdir(store.corpus_dir(BENCHMARK))) == sorted(
         store_lib.unit_name(payload)
         for payload in (b'start', b'first', b'second'))
+
+
+def test_stage_does_not_share_inodes_with_the_store(tmp_path):
+    """A staged unit must be a real copy. run_campaign mounts the staging
+    directory read-write, so a fuzzer that rewrites a unit in place would reach
+    through a hardlink into the store, which is the only copy."""
+    store = store_lib.CorpusStore(str(tmp_path))
+    corpus_dir = store.create('benchmark')
+    unit = os.path.join(corpus_dir, 'unit')
+    with open(unit, 'wb') as handle:
+        handle.write(b'original')
+
+    staged = store.stage('benchmark')
+    staged_unit = os.path.join(staged, 'unit')
+    assert os.stat(staged_unit).st_ino != os.stat(unit).st_ino
+
+    # Rewriting the staged unit in place must not touch the store's copy.
+    with open(staged_unit, 'wb') as handle:
+        handle.write(b'clobbered')
+    with open(unit, 'rb') as handle:
+        assert handle.read() == b'original'

@@ -237,6 +237,13 @@ class CorpusStore:
         write into the input corpus they are handed, and a campaign that
         crashes halfway through must not be able to leave the store in a state
         no minimization produced.
+
+        A real copy, not a hardlink. Hardlinking is cheaper and survives a
+        fuzzer that only adds and deletes files, but engine.run_campaign mounts
+        this directory read-write, so a fuzzer that opens an existing unit for
+        writing would write straight through the shared inode into the store --
+        the exact case staging exists to prevent, and the store is the only
+        copy.
         """
         source = self.corpus_dir(benchmark)
         staged = self.scratch_dir('staged', benchmark)
@@ -245,13 +252,7 @@ class CorpusStore:
         for entry in os.scandir(source):
             if not entry.is_file():
                 continue
-            target = os.path.join(staged, entry.name)
-            try:
-                # Same filesystem by construction, so this is free. The fuzzer
-                # only ever adds files, so sharing the inode is safe.
-                os.link(entry.path, target)
-            except OSError:
-                shutil.copyfile(entry.path, target)
+            shutil.copyfile(entry.path, os.path.join(staged, entry.name))
         return staged
 
     def new_corpus_dir(self, benchmark: str) -> str:
