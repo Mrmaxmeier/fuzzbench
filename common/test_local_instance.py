@@ -13,36 +13,55 @@
 # limitations under the License.
 """Tests for local_instance.py."""
 
-import subprocess
 from unittest import mock
 
 from common import local_instance
+from common import new_process
+
+
+def _result(retcode=0, timed_out=False, output=''):
+    """Returns a ProcessResult like new_process.execute would."""
+    return new_process.ProcessResult(retcode, output, timed_out)
 
 
 @mock.patch('shutil.which', return_value='/usr/local/bin/bash')
-@mock.patch('subprocess.Popen')
-def test_run_local_instance_redirects_output(mocked_popen, _mocked_which):
-    """run_local_instance must not use an unread PIPE (deadlock risk)."""
-    mocked_popen.return_value = mock.Mock()
+@mock.patch('common.new_process.execute', return_value=_result())
+def test_run_local_instance_runs_the_startup_script(mocked_execute,
+                                                    _mocked_which):
+    """A successful launch reports success and runs the script under bash."""
     assert local_instance.run_local_instance('/tmp/startup.sh')
-    mocked_popen.assert_called_once_with(
-        ['/usr/local/bin/bash', '/tmp/startup.sh'],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    assert mocked_execute.call_args[0][0] == [
+        '/usr/local/bin/bash', '/tmp/startup.sh'
+    ]
 
 
 @mock.patch('shutil.which', return_value=None)
-@mock.patch('subprocess.Popen')
-def test_run_local_instance_falls_back_to_bin_bash(mocked_popen, _mocked_which):
+@mock.patch('common.new_process.execute', return_value=_result())
+def test_run_local_instance_falls_back_to_bin_bash(mocked_execute,
+                                                   _mocked_which):
     """run_local_instance falls back to /bin/bash when bash is not on PATH."""
-    mocked_popen.return_value = mock.Mock()
     assert local_instance.run_local_instance('/tmp/startup.sh')
-    assert mocked_popen.call_args[0][0] == ['/bin/bash', '/tmp/startup.sh']
+    assert mocked_execute.call_args[0][0] == ['/bin/bash', '/tmp/startup.sh']
 
 
-@mock.patch('subprocess.Popen', side_effect=OSError('boom'))
-def test_run_local_instance_returns_false_on_oserror(_mocked_popen):
+@mock.patch('common.new_process.execute',
+            return_value=_result(retcode=125, output='no such image'))
+def test_run_local_instance_reports_a_failed_launch(_mocked_execute):
+    """A trial whose container did not start must not be reported as started:
+    the caller would mark it started, and it would then hold its cpuset until
+    it expired max_total_time later while producing no corpus at all."""
+    assert not local_instance.run_local_instance('/tmp/startup.sh')
+
+
+@mock.patch('common.new_process.execute',
+            return_value=_result(retcode=-9, timed_out=True))
+def test_run_local_instance_reports_a_hung_launch(_mocked_execute):
+    """A startup script that never returns is a failed launch too."""
+    assert not local_instance.run_local_instance('/tmp/startup.sh')
+
+
+@mock.patch('common.new_process.execute', side_effect=OSError('boom'))
+def test_run_local_instance_returns_false_on_oserror(_mocked_execute):
     """run_local_instance returns False when the process cannot be started."""
     assert not local_instance.run_local_instance('/tmp/startup.sh')
 

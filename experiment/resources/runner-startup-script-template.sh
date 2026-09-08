@@ -13,13 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Configure the host.
+# Configure the host. Both of these need privileges this may not have, and
+# neither is fatal to the trial, so failures are ignored rather than left to
+# pollute the output that the caller now checks for real launch errors.
 
-# Make everything ptrace-able.
-echo 0 > /proc/sys/kernel/yama/ptrace_scope
+# Make everything ptrace-able. Braced so that bash's own report of a failed
+# redirection is suppressed too, not just the command's stderr.
+{ echo 0 > /proc/sys/kernel/yama/ptrace_scope; } 2>/dev/null || true
 
 # Do not notify external programs about core dumps.
-echo core >/proc/sys/kernel/core_pattern
+{ echo core > /proc/sys/kernel/core_pattern; } 2>/dev/null || true
 
 # Start docker.
 # Run detached and stream logs with `docker logs -f` rather than attaching:
@@ -57,4 +60,20 @@ docker run -d \
 --cap-add SYS_NICE --cap-add SYS_PTRACE \
 --security-opt seccomp=unconfined \
 {{runner_image_ref}} > /dev/null
-docker logs -f {{instance_name}} > /tmp/runner-log-{{trial_id}}.txt 2>&1
+run_status=$?
+if [ $run_status -ne 0 ]; then
+  echo "docker run for {{instance_name}} failed with status $run_status" >&2
+  exit $run_status
+fi
+
+# Stream the container's log to a file. --rm deletes the container when it
+# exits, so this is the only copy of it.
+#
+# Backgrounded, with its own stdio, so that this script exits as soon as the
+# container is up. The script's exit status is the caller's only evidence that
+# the trial actually started -- blocking here for the whole run made every
+# launch look successful, including the ones where `docker run` had just
+# failed. Detaching it also means an outstanding trial costs one process rather
+# than a blocked shell plus this one.
+setsid docker logs -f {{instance_name}} \
+  < /dev/null > /tmp/runner-log-{{trial_id}}.txt 2>&1 &

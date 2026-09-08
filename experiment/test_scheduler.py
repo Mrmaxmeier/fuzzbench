@@ -123,7 +123,23 @@ docker run -d \\
 --cap-add SYS_NICE --cap-add SYS_PTRACE \\
 --security-opt seccomp=unconfined \\
 {runner_image_ref} > /dev/null
-docker logs -f r-test-experiment-9 > /tmp/runner-log-9.txt 2>&1'''
+run_status=$?
+if [ $run_status -ne 0 ]; then
+  echo "docker run for r-test-experiment-9 failed with status $run_status" >&2
+  exit $run_status
+fi
+
+# Stream the container's log to a file. --rm deletes the container when it
+# exits, so this is the only copy of it.
+#
+# Backgrounded, with its own stdio, so that this script exits as soon as the
+# container is up. The script's exit status is the caller's only evidence that
+# the trial actually started -- blocking here for the whole run made every
+# launch look successful, including the ones where `docker run` had just
+# failed. Detaching it also means an outstanding trial costs one process rather
+# than a blocked shell plus this one.
+setsid docker logs -f r-test-experiment-9 \\
+  < /dev/null > /tmp/runner-log-9.txt 2>&1 &'''
     with mock.patch('common.benchmark_utils.get_fuzz_target',
                     return_value=expected_target):
         _test_create_trial_instance(benchmark, expected_image, expected_target,
