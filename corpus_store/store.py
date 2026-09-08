@@ -102,7 +102,9 @@ def iter_input_files(sources: typing.Iterable[str]):
 
 def import_units(sources: typing.Iterable[str], destination: str) -> int:
     """Copies every unit under |sources| into |destination| under its
-    content-addressed name. Returns the number of distinct units written.
+    content-addressed name. Returns how many distinct units |sources| held,
+    which is what the caller reports; a unit |destination| already has counts,
+    because it is still a unit these sources contributed.
 
     Empty and oversized files are dropped rather than stored: neither can teach
     the corpus anything, and the oversized ones would be skipped by the runner
@@ -338,5 +340,11 @@ class CorpusStore:
         return entry
 
     def clean_work_dir(self):
-        """Removes scratch directories left behind by a crashed run."""
+        """Removes every scratch directory under the store.
+
+        Including the ones a concurrent run is using: scratch_dir keys by pid
+        so that two runs cannot delete each other's working set, but this takes
+        the whole tree. Only wired up to the explicit `clean` subcommand for
+        that reason - do not call it from anything automatic.
+        """
         shutil.rmtree(os.path.join(self.root, WORK_DIRNAME), ignore_errors=True)

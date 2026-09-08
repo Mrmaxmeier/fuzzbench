@@ -22,28 +22,9 @@ from common import experiment_utils
 from common import filestore_utils
 
 
-def store_build_logs(build_config, build_result):
-    """Save build results in the build logs bucket."""
-    build_output = (f'Command returned {build_result.retcode}.\n'
-                    f'Output: {build_result.output}')
-    with tempfile.NamedTemporaryFile(mode='w') as tmp:
-        tmp.write(build_output)
-        tmp.flush()
-
-        build_log_filename = build_config + '.txt'
-        filestore_utils.cp(
-            tmp.name,
-            exp_path.filestore(get_build_logs_dir() / build_log_filename))
-
-
 def get_coverage_binaries_dir():
     """Return coverage binaries directory."""
     return exp_path.path('coverage-binaries')
-
-
-def get_build_logs_dir():
-    """Return build logs directory."""
-    return exp_path.path('build-logs')
 
 
 def store_resolved_images(resolved_images):

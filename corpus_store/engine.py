@@ -264,9 +264,12 @@ def run_campaign(  # pylint: disable=too-many-arguments,too-many-positional-argu
     written as they are found, so an interrupted campaign still contributes
     everything up to the moment it was cut off.
     """
+    # repr() only: these become Python string literals inside `python3 -c`,
+    # and the argv is passed to docker directly with no shell in between.
+    # shlex.quote() is for the other case and would embed literal quote
+    # characters into the path for anything it decided needed quoting.
     driver = (f'from fuzzers.{fuzzer} import fuzzer; '
-              f'fuzzer.fuzz({shlex.quote("/work/in")!r}, '
-              f'{shlex.quote("/work/out")!r}, '
+              f'fuzzer.fuzz({"/work/in"!r}, {"/work/out"!r}, '
               f'{target_binary_path(benchmark)!r})')
 
     return _docker_run(

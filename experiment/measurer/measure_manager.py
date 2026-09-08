@@ -112,7 +112,9 @@ def measure_main(experiment_config):
 
 def _time_to_cycle(time_in_seconds: float) -> int:
     """Converts |time_in_seconds| to the corresponding cycle and returns it."""
-    return time_in_seconds // experiment_utils.get_snapshot_seconds()
+    # int() rather than just floor division, which yields a float for a float
+    # input and would put a float into cycle arithmetic and filenames.
+    return int(time_in_seconds // experiment_utils.get_snapshot_seconds())
 
 
 def _query_ids_of_measured_trials(experiment: str):

@@ -196,7 +196,10 @@ class CoverageReporter:  # pylint: disable=too-many-instance-attributes
 
         src_dir = self.report_dir
         dst_dir = exp_path.filestore(self.report_dir)
-        filestore_utils.cp(src_dir, dst_dir, recursive=True, parallel=True)
+        # rsync rather than `cp -r`: cp copies the directory *into* an existing
+        # destination, so a second run would leave the report at
+        # <fuzzer>/<fuzzer>/ instead of replacing it.
+        filestore_utils.rsync(src_dir, dst_dir)
 
     def generate_coverage_branches_json(self):
         """Stores the coverage data in a json file."""

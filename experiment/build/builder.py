@@ -153,7 +153,7 @@ def retry_build_loop(build_func: Callable, inputs: List[Tuple]) -> List:
     num_concurrent_builds = int(os.getenv('CONCURRENT_BUILDS') or '1')
     logs.info('Concurrent builds: %d.', num_concurrent_builds)
     with mp_pool.ThreadPool(num_concurrent_builds) as pool:
-        for _ in range(NUM_BUILD_ATTEMPTS):
+        for attempt in range(NUM_BUILD_ATTEMPTS):
             logs.info('Building using (%s): %s', build_func.__name__, inputs)
             results = pool.starmap(build_func, inputs)
             curr_successes, curr_failures = split_successes_and_failures(
@@ -166,6 +166,10 @@ def retry_build_loop(build_func: Callable, inputs: List[Tuple]) -> List:
 
             logs.error('Build failures: %s', curr_failures)
             inputs = curr_failures
+            if attempt == NUM_BUILD_ATTEMPTS - 1:
+                # Nothing left to back off for; sleeping here only delayed the
+                # experiment by up to BUILD_FAIL_WAIT before giving up anyway.
+                break
             sleep_interval = random.uniform(1, BUILD_FAIL_WAIT)
             logs.info('Sleeping for %d secs before retrying.', sleep_interval)
             time.sleep(sleep_interval)
