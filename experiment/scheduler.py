@@ -368,6 +368,7 @@ def render_startup_script_template(  # pylint: disable=too-many-arguments
         'no_seeds': experiment_config['no_seeds'],
         'no_dictionaries': experiment_config['no_dictionaries'],
         'num_cpu_cores': experiment_config['runner_num_cpu_cores'],
+        'memory_mb': experiment_config['runner_memory_mb'],
         'private': experiment_config['private'],
         'cpuset': cpuset,
         'custom_seed_corpus_dir': experiment_config['custom_seed_corpus_dir'],

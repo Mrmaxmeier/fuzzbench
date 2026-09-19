@@ -64,6 +64,8 @@ def _set_default_config_values(config: Dict[str, Union[int, str, bool]]):
         'snapshot_period', experiment_utils.DEFAULT_SNAPSHOT_SECONDS)
     config['private'] = config.get('private', False)
     config['micro_experiment'] = config.get('micro_experiment', False)
+    config['runner_memory_mb'] = config.get(
+        'runner_memory_mb', experiment_utils.DEFAULT_RUNNER_MEMORY_MB)
 
 
 def _validate_config_parameters(
@@ -148,16 +150,30 @@ def read_and_validate_experiment_config(config_filename: str) -> Dict:
         'private': Requirement(False, bool, False, ''),
         'merge_with_nonprivate': Requirement(False, bool, False, ''),
         'runner_num_cpu_cores': Requirement(False, int, False, ''),
+        'runner_memory_mb': Requirement(False, int, False, ''),
         'micro_experiment': Requirement(False, bool, False, ''),
     }
 
     all_params_valid = _validate_config_parameters(config, config_requirements)
     all_values_valid = _validate_config_values(config, config_requirements)
-    if not all_params_valid or not all_values_valid:
+    memory_valid = _validate_runner_memory(config)
+    if not all_params_valid or not all_values_valid or not memory_valid:
         raise ValidationError(f'Config: {config_filename} is invalid.')
 
     _set_default_config_values(config)
     return config
+
+
+def _validate_runner_memory(config: Dict) -> bool:
+    """Validates the runners' memory limit in |config|."""
+    memory_mb = config.get('runner_memory_mb', 0)
+    # Its type is checked with the other parameters.
+    if not isinstance(memory_mb, int) or memory_mb >= 0:
+        return True
+    logs.error(
+        'Config parameter "runner_memory_mb" is "%s". It must be a number '
+        'of MiB, or 0 for no limit.', memory_mb)
+    return False
 
 
 class ValidationError(Exception):

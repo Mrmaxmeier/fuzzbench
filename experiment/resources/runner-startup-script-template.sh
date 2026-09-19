@@ -38,7 +38,8 @@
 docker run -d \
 --name {{instance_name}} \
 --privileged --cpus={{num_cpu_cores}} --rm \
--e INSTANCE_NAME={{instance_name}} \
+{% if memory_mb %}--memory={{memory_mb}}m --memory-swap={{memory_mb}}m \
+{% endif %}-e INSTANCE_NAME={{instance_name}} \
 -e FUZZER={{fuzzer}} \
 -e BENCHMARK={{benchmark}} \
 -e EXPERIMENT={{experiment}} \

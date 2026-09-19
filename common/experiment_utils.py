@@ -21,6 +21,8 @@ from common import environment
 from common import experiment_path as exp_path
 
 DEFAULT_SNAPSHOT_SECONDS = 15 * 60  # Seconds.
+# Memory each trial's container may use, in MiB. 0 means unlimited.
+DEFAULT_RUNNER_MEMORY_MB = 4 * 1024
 CONFIG_DIR = 'config'
 
 # Prefix for the names of the images FuzzBench builds for itself (base image,

@@ -101,6 +101,7 @@ def test_create_trial_instance(benchmark, expected_image, expected_target,
 docker run -d \\
 --name r-test-experiment-9 \\
 --privileged --cpus=1 --rm \\
+--memory=8192m --memory-swap=8192m \\
 -e INSTANCE_NAME=r-test-experiment-9 \\
 -e FUZZER=fuzzer-a \\
 -e BENCHMARK={benchmark} \\

@@ -145,7 +145,22 @@ class TestReadAndValdiateExperimentConfig(unittest.TestCase):
             experiment_utils.DEFAULT_SNAPSHOT_SECONDS)
         expected_config['private'] = False
         expected_config['micro_experiment'] = False
+        expected_config['runner_memory_mb'] = (
+            experiment_utils.DEFAULT_RUNNER_MEMORY_MB)
         assert expected_config == validated_config
+
+    @mock.patch('common.logs.error')
+    def test_negative_runner_memory(self, mocked_error):
+        """Tests that a negative memory limit is rejected."""
+        self.config['runner_memory_mb'] = -1
+        with mock.patch('common.yaml_utils.read') as mocked_read_yaml:
+            mocked_read_yaml.return_value = self.config
+            with pytest.raises(run_experiment.ValidationError):
+                run_experiment.read_and_validate_experiment_config(
+                    'config_file')
+        mocked_error.assert_any_call(
+            'Config parameter "runner_memory_mb" is "%s". It must be a number '
+            'of MiB, or 0 for no limit.', -1)
 
 
 def test_validate_fuzzer():

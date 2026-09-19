@@ -34,5 +34,6 @@ concurrent_builds: null
 runners_cpus: null
 measurers_cpus: null
 runner_num_cpu_cores: 1
+runner_memory_mb: 8192
 private: false
 micro_experiment: false

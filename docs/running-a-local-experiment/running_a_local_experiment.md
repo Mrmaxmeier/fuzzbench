@@ -59,6 +59,14 @@ report_filestore: /tmp/report-data
 `local_experiment` defaults to `true` and does not need to be set for local
 runs.
 
+Each trial's container may use at most 4 GiB of memory, swap included, and a
+trial that goes over is killed. To change this, set `runner_memory_mb`, where
+`0` means no limit:
+
+```yaml
+runner_memory_mb: 8192
+```
+
 ## Benchmarks
 
 Pick the benchmarks you want to use from the `benchmarks/` directory.
