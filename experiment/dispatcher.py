@@ -34,6 +34,7 @@ from database import utils as db_utils
 from experiment.build import build_utils
 from experiment.build import builder
 from experiment.build import local_build
+from experiment import hq_scheduler
 from experiment.measurer import measure_manager
 from experiment import reporter
 from experiment import scheduler
@@ -178,7 +179,12 @@ def dispatcher_main():
     create_work_subdirs(['experiment-folders', 'measurement-folders'])
 
     # Start measurer and scheduler in seperate threads/processes.
-    scheduler_loop_thread = threading.Thread(target=scheduler.schedule_loop,
+    if (experiment_utils.get_executor(
+            experiment.config) == experiment_utils.EXECUTOR_HYPERQUEUE):
+        schedule_loop = hq_scheduler.schedule_loop
+    else:
+        schedule_loop = scheduler.schedule_loop
+    scheduler_loop_thread = threading.Thread(target=schedule_loop,
                                              args=(experiment.config,))
     scheduler_loop_thread.start()
 

@@ -14,6 +14,7 @@
 """Tests for run_experiment.py."""
 
 import os
+import tempfile
 from unittest import mock
 import unittest
 
@@ -145,6 +146,7 @@ class TestReadAndValdiateExperimentConfig(unittest.TestCase):
             experiment_utils.DEFAULT_SNAPSHOT_SECONDS)
         expected_config['private'] = False
         expected_config['micro_experiment'] = False
+        expected_config['executor'] = experiment_utils.EXECUTOR_LOCAL
         expected_config['runner_memory_mb'] = (
             experiment_utils.DEFAULT_RUNNER_MEMORY_MB)
         assert expected_config == validated_config
@@ -161,6 +163,68 @@ class TestReadAndValdiateExperimentConfig(unittest.TestCase):
         mocked_error.assert_any_call(
             'Config parameter "runner_memory_mb" is "%s". It must be a number '
             'of MiB, or 0 for no limit.', -1)
+
+    @mock.patch('common.logs.error')
+    def test_invalid_executor(self, mocked_error):
+        """Tests that an unknown executor is rejected."""
+        self.config['executor'] = 'slurm'
+        with mock.patch('common.yaml_utils.read') as mocked_read_yaml:
+            mocked_read_yaml.return_value = self.config
+            with pytest.raises(run_experiment.ValidationError):
+                run_experiment.read_and_validate_experiment_config(
+                    'config_file')
+        mocked_error.assert_called_with(
+            'Config parameter "executor" is "%s". It must be one of %s.',
+            'slurm', 'local, hyperqueue')
+
+    @mock.patch('common.logs.error')
+    def test_hyperqueue_relative_path(self, mocked_error):
+        """Tests that HyperQueue paths must be absolute, since the dispatcher
+        container gets them mounted at the same path."""
+        self.config['executor'] = 'hyperqueue'
+        self.config['hq_binary'] = 'bin/hq'
+        with mock.patch('common.yaml_utils.read') as mocked_read_yaml:
+            mocked_read_yaml.return_value = self.config
+            with pytest.raises(run_experiment.ValidationError):
+                run_experiment.read_and_validate_experiment_config(
+                    'config_file')
+        mocked_error.assert_called_with(
+            'Config parameter "%s" is "%s". It must be an absolute path.',
+            'hq_binary', 'bin/hq')
+
+    def test_hyperqueue_resolves_paths(self):
+        """Tests that the HyperQueue client and server directory are found and
+        recorded as real paths."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            hq_binary = os.path.join(temp_dir, 'hq')
+            with open(hq_binary, 'w', encoding='utf-8'):
+                pass
+            server_dir = os.path.join(temp_dir, 'server')
+            os.mkdir(server_dir)
+            server_dir_link = os.path.join(temp_dir, 'server-link')
+            os.symlink(server_dir, server_dir_link)
+
+            self.config['executor'] = 'hyperqueue'
+            self.config['hq_binary'] = hq_binary
+            with mock.patch('common.yaml_utils.read') as mocked_read_yaml, \
+                    mock.patch.dict(os.environ,
+                                    {'HQ_SERVER_DIR': server_dir_link}):
+                mocked_read_yaml.return_value = self.config
+                config = run_experiment.read_and_validate_experiment_config(
+                    'config_file')
+            assert config['hq_binary'] == os.path.realpath(hq_binary)
+            assert config['hq_server_dir'] == os.path.realpath(server_dir)
+
+    def test_hyperqueue_missing_binary(self):
+        """Tests that the hyperqueue executor requires an `hq` client."""
+        self.config['executor'] = 'hyperqueue'
+        with mock.patch('common.yaml_utils.read') as mocked_read_yaml, \
+                mock.patch('common.hyperqueue.find_binary', return_value=None):
+            mocked_read_yaml.return_value = self.config
+            with pytest.raises(run_experiment.ValidationError,
+                               match='needs the `hq` client'):
+                run_experiment.read_and_validate_experiment_config(
+                    'config_file')
 
 
 def test_validate_fuzzer():
@@ -246,6 +310,32 @@ def _get_dispatcher_command(config, tmp_path):
     with mock.patch('common.new_process.execute') as mocked_execute:
         run_experiment.Dispatcher(config).start()
     return mocked_execute.call_args[0][0]
+
+
+def test_dispatcher_start_hyperqueue(tmp_path, experiment_config):
+    """Tests that a hyperqueue dispatcher gets the HyperQueue client and server
+    directory, and the host's network to reach the server over."""
+    experiment_config['executor'] = 'hyperqueue'
+    experiment_config['hq_binary'] = '/mnt/hq/hq'
+    experiment_config['hq_server_dir'] = '/mnt/hq/.hq-server'
+    command = _get_dispatcher_command(experiment_config, tmp_path)
+
+    assert '--network=host' in command
+    assert '/mnt/hq/hq:/mnt/hq/hq:ro' in command
+    assert '/mnt/hq/.hq-server:/mnt/hq/.hq-server:ro' in command
+    assert 'HQ_BINARY=/mnt/hq/hq' in command
+    assert 'HQ_SERVER_DIR=/mnt/hq/.hq-server' in command
+    # Options must come before the image, or docker hands them to the image.
+    image_index = command.index('localhost/fuzzbench/dispatcher-image')
+    assert command.index('--network=host') < image_index
+
+
+def test_dispatcher_start_local(tmp_path, experiment_config):
+    """Tests that a local dispatcher doesn't get HyperQueue's arguments."""
+    command = _get_dispatcher_command(experiment_config, tmp_path)
+
+    assert '--network=host' not in command
+    assert not any('HQ_' in arg for arg in command)
 
 
 def test_dispatcher_start_creates_filestores(tmp_path, experiment_config):

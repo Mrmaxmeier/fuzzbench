@@ -33,6 +33,18 @@ CONFIG_DIR = 'config'
 # from Docker Hub. Override with DOCKER_REGISTRY to push to a real registry.
 DEFAULT_DOCKER_REGISTRY = 'localhost/fuzzbench'
 
+# How trials are run. 'local' starts each trial's container on the dispatcher's
+# own host. 'hyperqueue' submits each trial as a job to a HyperQueue server,
+# which runs it on whichever worker has room.
+EXECUTOR_LOCAL = 'local'
+EXECUTOR_HYPERQUEUE = 'hyperqueue'
+EXECUTORS = (EXECUTOR_LOCAL, EXECUTOR_HYPERQUEUE)
+
+
+def get_executor(experiment_config) -> str:
+    """Returns the executor that runs the trials of |experiment_config|."""
+    return experiment_config.get('executor') or EXECUTOR_LOCAL
+
 
 def get_docker_registry():
     """Returns the prefix to use for FuzzBench's own docker images."""

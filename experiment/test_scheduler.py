@@ -14,6 +14,7 @@
 """Tests for scheduler.py"""
 import datetime
 from multiprocessing.pool import ThreadPool
+import re
 import time
 from unittest import mock
 
@@ -176,6 +177,29 @@ def _test_create_trial_instance(  # pylint: disable=too-many-locals
             benchmark=benchmark,
             oss_fuzz_target=expected_target,
             runner_image_ref=expected_image)
+
+
+@mock.patch('common.benchmark_utils.get_fuzz_target',
+            return_value='fuzz-target')
+def test_runner_environment_matches_startup_script(_, experiment_config):
+    """Tests that the HyperQueue executor starts runners with the same
+    environment as the local executor's startup script, which spells its
+    variables out by hand."""
+    instance_name = 'r-test-experiment-9'
+    startup_script = scheduler.render_startup_script_template(
+        instance_name,
+        'fuzzer-a',
+        'benchmark1',
+        9,
+        3,
+        experiment_config,
+        runner_image_digest=RUNNER_IMAGE_DIGEST)
+    script_environment = dict(
+        re.findall(r'^-e (\w+)=(\S*)', startup_script, re.MULTILINE))
+
+    assert scheduler.get_runner_environment(
+        instance_name, 'fuzzer-a', 'benchmark1', 9, 3,
+        experiment_config) == (script_environment)
 
 
 @mock.patch('common.local_instance.run_local_instance')

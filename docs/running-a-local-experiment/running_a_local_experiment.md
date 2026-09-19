@@ -98,9 +98,57 @@ You can optionally add:
 * `--concurrent-builds N` - to limit the number of concurrent builds, useful
   when having limited memory.
 * `--runners-cpus` - to limit the number of usable CPUs by the runner containers
-  (in which fuzzers run).
+  (in which fuzzers run). See also [Running trials on a HyperQueue
+  cluster](#running-trials-on-a-hyperqueue-cluster).
 * `--measurers-cpus` - to limit the number of usable CPUs by the measurer
   containers.
+
+## Running trials on a HyperQueue cluster
+
+By default every trial runs in a container on the machine running the
+dispatcher. With `executor: hyperqueue`, trials run on the workers of a
+[HyperQueue](https://it4innovations.github.io/hyperqueue/) server instead.
+The dispatcher still runs locally and still builds every image and measures
+every trial; only the fuzzing moves to the cluster. Each trial becomes one
+HyperQueue job named `r-$EXPERIMENT_NAME-$TRIAL_ID`, pinned to the cpus its
+worker allocates it.
+
+```yaml
+executor: hyperqueue
+
+# Both filestores must be on a filesystem that every worker mounts at the same
+# path, such as an NFS export.
+experiment_filestore: /mnt/hq/fuzzbench/experiment-data
+report_filestore: /mnt/hq/fuzzbench/report-data
+
+# Optional. Default to the `hq` on PATH and to $HQ_SERVER_DIR (or
+# ~/.hq-server).
+hq_binary: /mnt/hq/hq
+hq_server_dir: /mnt/hq/.hq-server
+```
+
+Each worker needs `podman` (rootless is fine; on Debian and Ubuntu also
+install `uidmap`, which `podman` only recommends) and `python3`. Nothing else
+is installed on it and nothing needs to be built there: the dispatcher exports
+each runner image once to `$EXPERIMENT_FILESTORE/runner-images/`, named by
+digest, and a worker loads it the first time it runs one of its trials.
+
+With this executor `--runners-cpus` no longer refers to this machine. It caps
+the cluster cpus that the experiment's trials may hold at once, queued or
+running, and leaving it out submits every trial straight away.
+
+Each job also reserves its trial's `runner_memory_mb` from HyperQueue's `mem`
+resource, so a worker only takes on as many trials as fit in its memory. At
+the default of 4 GiB, a worker with 768 GiB runs at most 192 trials at once,
+however many cpus it has, and the rest wait in the queue.
+
+A trial counts as started when its container starts on a worker, not when it
+is submitted, so queueing doesn't cost it measurement cycles. A job that fails
+before getting that far is resubmitted, up to three times. Each attempt's
+output is in `$EXPERIMENT_FILESTORE/$EXPERIMENT_NAME/hq/logs/`.
+
+`experiment/stop_experiment.py` stops the dispatcher and cancels the
+experiment's jobs, which would otherwise keep running on the cluster.
 
 ## Viewing reports
 

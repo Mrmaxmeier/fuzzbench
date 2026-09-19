@@ -18,6 +18,7 @@ import os
 import sys
 import random
 import time
+from typing import Dict
 
 import jinja2
 
@@ -331,6 +332,39 @@ def _start_trial(trial: TrialProxy, experiment_config: dict, cpuset=None):
         return trial
     logger.info('Trial: %d not started.', trial.id)
     return None
+
+
+def get_runner_environment(  # pylint: disable=too-many-arguments
+        instance_name: str, fuzzer: str, benchmark: str, trial_id: int,
+        trial_group_num: int, experiment_config: dict) -> Dict[str, str]:
+    """Returns the environment of a trial's runner container, rendered as
+    strings the way the startup script template renders them.
+
+    The HyperQueue executor starts runners with this. The local executor's
+    template spells the same variables out by hand, and a test checks that the
+    two agree.
+    """
+    environment = {
+        'INSTANCE_NAME': instance_name,
+        'FUZZER': fuzzer,
+        'BENCHMARK': benchmark,
+        'EXPERIMENT': experiment_config['experiment'],
+        'TRIAL_ID': trial_id,
+        'TRIAL_GROUP_NUM': trial_group_num,
+        'MICRO_EXPERIMENT': experiment_config['micro_experiment'],
+        'MAX_TOTAL_TIME': experiment_config['max_total_time'],
+        'SNAPSHOT_PERIOD': experiment_config['snapshot_period'],
+        'NO_SEEDS': experiment_config['no_seeds'],
+        'NO_DICTIONARIES': experiment_config['no_dictionaries'],
+        'CUSTOM_SEED_CORPUS_DIR': experiment_config['custom_seed_corpus_dir'],
+        'DOCKER_REGISTRY': experiment_config['docker_registry'],
+        'EXPERIMENT_FILESTORE': experiment_config['experiment_filestore'],
+        'REPORT_FILESTORE': experiment_config['report_filestore'],
+        'FUZZ_TARGET': benchmark_utils.get_fuzz_target(benchmark),
+        'PRIVATE': experiment_config['private'],
+        'LOCAL_EXPERIMENT': True,
+    }
+    return {key: str(value) for key, value in environment.items()}
 
 
 def render_startup_script_template(  # pylint: disable=too-many-arguments

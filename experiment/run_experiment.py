@@ -31,6 +31,7 @@ from common import experiment_utils
 from common import filestore_utils
 from common import filesystem
 from common import fuzzer_utils
+from common import hyperqueue
 from common import logs
 from common import new_process
 from common import utils
@@ -60,6 +61,7 @@ Requirement = namedtuple('Requirement',
 def _set_default_config_values(config: Dict[str, Union[int, str, bool]]):
     """Set the default configuration values if they are not specified."""
     config['local_experiment'] = True
+    config['executor'] = experiment_utils.get_executor(config)
     config['snapshot_period'] = config.get(
         'snapshot_period', experiment_utils.DEFAULT_SNAPSHOT_SECONDS)
     config['private'] = config.get('private', False)
@@ -152,16 +154,42 @@ def read_and_validate_experiment_config(config_filename: str) -> Dict:
         'runner_num_cpu_cores': Requirement(False, int, False, ''),
         'runner_memory_mb': Requirement(False, int, False, ''),
         'micro_experiment': Requirement(False, bool, False, ''),
+        'executor': Requirement(False, str, True, ''),
+        'hq_binary': Requirement(False, str, False, ''),
+        'hq_server_dir': Requirement(False, str, False, ''),
     }
 
     all_params_valid = _validate_config_parameters(config, config_requirements)
     all_values_valid = _validate_config_values(config, config_requirements)
+    executor_valid = _validate_executor(config)
     memory_valid = _validate_runner_memory(config)
-    if not all_params_valid or not all_values_valid or not memory_valid:
+    if (not all_params_valid or not all_values_valid or not executor_valid or
+            not memory_valid):
         raise ValidationError(f'Config: {config_filename} is invalid.')
 
     _set_default_config_values(config)
+    if config['executor'] == experiment_utils.EXECUTOR_HYPERQUEUE:
+        _resolve_hyperqueue_config(config)
     return config
+
+
+def _validate_executor(config: Dict) -> bool:
+    """Validates the executor settings in |config|."""
+    valid = True
+    executor = config.get('executor', experiment_utils.EXECUTOR_LOCAL)
+    if executor not in experiment_utils.EXECUTORS:
+        valid = False
+        logs.error('Config parameter "executor" is "%s". It must be one of %s.',
+                   executor, ', '.join(experiment_utils.EXECUTORS))
+
+    for param in ('hq_binary', 'hq_server_dir'):
+        value = config.get(param)
+        if isinstance(value, str) and not os.path.isabs(value):
+            valid = False
+            logs.error(
+                'Config parameter "%s" is "%s". It must be an absolute '
+                'path.', param, value)
+    return valid
 
 
 def _validate_runner_memory(config: Dict) -> bool:
@@ -174,6 +202,28 @@ def _validate_runner_memory(config: Dict) -> bool:
         'Config parameter "runner_memory_mb" is "%s". It must be a number '
         'of MiB, or 0 for no limit.', memory_mb)
     return False
+
+
+def _resolve_hyperqueue_config(config: Dict):
+    """Fills in where the HyperQueue client and server directory are, from
+    the environment if |config| doesn't say, and checks that they exist.
+
+    The dispatcher runs in a container and gets both mounted from the host, so
+    they are recorded as absolute, symlink-free paths.
+    """
+    binary = config.get('hq_binary') or hyperqueue.find_binary()
+    if not binary or not os.path.isfile(binary):
+        raise ValidationError(
+            'The hyperqueue executor needs the `hq` client. Put it on PATH or '
+            f'set "hq_binary" in the config (got: {binary}).')
+    config['hq_binary'] = os.path.realpath(binary)
+
+    server_dir = config.get('hq_server_dir') or hyperqueue.find_server_dir()
+    if not os.path.isdir(server_dir):
+        raise ValidationError(
+            f'HyperQueue server directory {server_dir} does not exist. Set '
+            f'{hyperqueue.HQ_SERVER_DIR_VAR} or "hq_server_dir" in the config.')
+    config['hq_server_dir'] = os.path.realpath(server_dir)
 
 
 class ValidationError(Exception):
@@ -418,6 +468,30 @@ def get_docker_socket() -> str:
     return DEFAULT_DOCKER_SOCKET
 
 
+def get_hyperqueue_dispatcher_args(config: Dict) -> List[str]:
+    """Returns the `docker run` arguments that let the dispatcher submit jobs
+    to HyperQueue: the client and the server directory, mounted from the host.
+
+    The client reaches the server at the address in the server directory's
+    access file, typically this host's own. A rootless container on the
+    default network can't reach its host's addresses, so the dispatcher gets
+    the host's network.
+    """
+    hq_binary = config['hq_binary']
+    hq_server_dir = config['hq_server_dir']
+    return [
+        '--network=host',
+        '-v',
+        f'{hq_binary}:{hq_binary}:ro',
+        '-v',
+        f'{hq_server_dir}:{hq_server_dir}:ro',
+        '-e',
+        f'{hyperqueue.HQ_BINARY_VAR}={hq_binary}',
+        '-e',
+        f'{hyperqueue.HQ_SERVER_DIR_VAR}={hq_server_dir}',
+    ]
+
+
 class Dispatcher:
     """Class representing the dispatcher, which runs the experiment in a
     container on this host."""
@@ -483,6 +557,10 @@ class Dispatcher:
             '-e',
             set_concurrent_builds_arg,
         ]
+        executor_args = []
+        if (experiment_utils.get_executor(
+                self.config) == experiment_utils.EXECUTOR_HYPERQUEUE):
+            executor_args = get_hyperqueue_dispatcher_args(self.config)
         command = [
             'docker',
             'run',
@@ -509,7 +587,7 @@ class Dispatcher:
             shared_experiment_filestore_arg,
             '-v',
             shared_report_filestore_arg,
-        ] + environment_args + [
+        ] + environment_args + executor_args + [
             '--shm-size=2g',
             '--cap-add=SYS_PTRACE',
             '--cap-add=SYS_NICE',
@@ -637,16 +715,23 @@ def run_experiment_main(args=None):
         parser.error('The measurers cpus argument must be a positive number,'
                      f' received {measurers_cpus}.')
 
-    if runners_cpus is None and measurers_cpus is not None:
+    # With the hyperqueue executor the runners run on the cluster's workers, so
+    # only the measurers need to fit on this host, and runners_cpus caps the
+    # cluster cpus the experiment's trials may hold at once.
+    executor = experiment_utils.get_executor(
+        yaml_utils.read(args.experiment_config))
+    runners_are_local = executor == experiment_utils.EXECUTOR_LOCAL
+    if (runners_are_local and runners_cpus is None and
+            measurers_cpus is not None):
         parser.error('With the measurers cpus argument (received '
                      f'{measurers_cpus}) you need to specify the runners cpus '
                      'argument too.')
 
-    if (runners_cpus if runners_cpus else 0) + (measurers_cpus if measurers_cpus
-                                                else 0) > os.cpu_count():
-        parser.error(f'The sum of runners ({runners_cpus}) and measurers cpus '
-                     f'({measurers_cpus}) is greater than the available cpu '
-                     f'cores (os.cpu_count()).')
+    local_runners_cpus = (runners_cpus or 0) if runners_are_local else 0
+    if local_runners_cpus + (measurers_cpus or 0) > os.cpu_count():
+        parser.error(f'The sum of runners ({local_runners_cpus}) and measurers '
+                     f'cpus ({measurers_cpus}) is greater than the available '
+                     f'cpu cores ({os.cpu_count()}).')
 
     if args.custom_seed_corpus_dir:
         if args.no_seeds:
