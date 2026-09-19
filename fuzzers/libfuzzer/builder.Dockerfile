@@ -15,9 +15,14 @@
 ARG parent_image
 FROM $parent_image
 
-RUN git clone https://github.com/llvm/llvm-project.git /llvm-project && \
+# Fetch only the pinned commit. A full clone of llvm-project is several GB, and
+# one runs per benchmark, so an experiment's worth of them at once gets
+# throttled by GitHub.
+RUN git init /llvm-project && \
     cd /llvm-project && \
-    git checkout 5cda4dc7b4d28fcd11307d4234c513ff779a1c6f && \
+    git fetch --depth 1 https://github.com/llvm/llvm-project.git \
+        5cda4dc7b4d28fcd11307d4234c513ff779a1c6f && \
+    git checkout FETCH_HEAD && \
     cd compiler-rt/lib/fuzzer && \
     (for f in *.cpp; do \
       clang++ -stdlib=libc++ -fPIC -O2 -std=c++11 $f -c & \
