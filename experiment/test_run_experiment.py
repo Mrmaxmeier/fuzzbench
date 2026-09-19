@@ -207,3 +207,35 @@ def test_copy_resources_to_filestore(tmp_path):
                     parallel=True)
     finally:
         os.chdir(cwd)
+
+
+@pytest.mark.parametrize('docker_host,expected_socket', [
+    (None, '/var/run/docker.sock'),
+    ('unix:///run/user/1000/podman/podman.sock',
+     '/run/user/1000/podman/podman.sock'),
+    ('tcp://127.0.0.1:2375', '/var/run/docker.sock'),
+])
+def test_get_docker_socket(docker_host, expected_socket):
+    """Tests that the dispatcher is given the socket this host's docker uses."""
+    environment = {'DOCKER_HOST': docker_host} if docker_host else {}
+    with mock.patch.dict(os.environ, environment, clear=True):
+        assert run_experiment.get_docker_socket() == expected_socket
+
+
+def _get_dispatcher_command(config, tmp_path):
+    """Returns the command Dispatcher.start runs for |config|, with its
+    filestores in |tmp_path|."""
+    config['experiment_filestore'] = str(tmp_path / 'experiment-data')
+    config['report_filestore'] = str(tmp_path / 'report-data')
+    config['concurrent_builds'] = 1
+    with mock.patch('common.new_process.execute') as mocked_execute:
+        run_experiment.Dispatcher(config).start()
+    return mocked_execute.call_args[0][0]
+
+
+def test_dispatcher_start_creates_filestores(tmp_path, experiment_config):
+    """Tests that both filestores exist before they are mounted, since podman
+    won't create a missing mount source."""
+    _get_dispatcher_command(experiment_config, tmp_path)
+    assert os.path.isdir(experiment_config['experiment_filestore'])
+    assert os.path.isdir(experiment_config['report_filestore'])

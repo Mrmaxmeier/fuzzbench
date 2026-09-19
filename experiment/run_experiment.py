@@ -385,6 +385,22 @@ _DISPATCHER_ENV_ARGS = [
     'NUMEXPR_NUM_THREADS=2',
 ]
 
+DEFAULT_DOCKER_SOCKET = '/var/run/docker.sock'
+
+
+def get_docker_socket() -> str:
+    """Returns the path of the socket that this host's `docker` talks to.
+
+    That is the engine holding the images an experiment builds and runs, so it
+    is the one the dispatcher must be given. With rootless podman it is a
+    per-user socket named by DOCKER_HOST, and /var/run/docker.sock, if it
+    exists at all, belongs to a different engine.
+    """
+    docker_host = os.getenv('DOCKER_HOST', '')
+    if docker_host.startswith('unix://'):
+        return docker_host[len('unix://'):]
+    return DEFAULT_DOCKER_SOCKET
+
 
 class Dispatcher:
     """Class representing the dispatcher, which runs the experiment in a
@@ -402,6 +418,10 @@ class Dispatcher:
         experiment_filestore_path = os.path.abspath(
             self.config['experiment_filestore'])
         filesystem.create_directory(experiment_filestore_path)
+        # Both filestores are bind-mounted, and podman, unlike docker, won't
+        # create a missing mount source.
+        filesystem.create_directory(
+            os.path.abspath(self.config['report_filestore']))
         sql_database_arg = (
             'SQL_DATABASE_URL=sqlite:///'
             f'{os.path.join(experiment_filestore_path, "local.db")}'
@@ -468,7 +488,7 @@ class Dispatcher:
             # don't help; they bound CPU shares, not this pids ceiling.
             '--pids-limit=-1',
             '-v',
-            '/var/run/docker.sock:/var/run/docker.sock',
+            f'{get_docker_socket()}:{DEFAULT_DOCKER_SOCKET}',
             '-v',
             shared_experiment_filestore_arg,
             '-v',
