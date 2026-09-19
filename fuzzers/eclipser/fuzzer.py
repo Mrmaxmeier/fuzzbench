@@ -53,8 +53,11 @@ def build():
     # Ensure to compile with NO_SANITIZER_COMPAT* flags even for bug benchmarks,
     # as QEMU is incompatible with sanitizers. Also, Eclipser prefers clean and
     # unoptimized binaries. We leave fast random fuzzing as AFL's job.
-    new_env['CFLAGS'] = ' '.join(utils.NO_SANITIZER_COMPAT_CFLAGS)
-    cxxflags = [utils.LIBCPLUSPLUS_FLAG] + utils.NO_SANITIZER_COMPAT_CFLAGS
+    # Keep FUZZING_CFLAGS, which some fuzz targets depend on to compile at all
+    # (libjpeg-turbo's cjpeg fuzzer, for one).
+    cflags = utils.FUZZING_CFLAGS + utils.NO_SANITIZER_COMPAT_CFLAGS
+    new_env['CFLAGS'] = ' '.join(cflags)
+    cxxflags = [utils.LIBCPLUSPLUS_FLAG] + cflags
     new_env['CXXFLAGS'] = ' '.join(cxxflags)
     uninstrumented_outdir = get_uninstrumented_outdir(os.environ['OUT'])
     os.mkdir(uninstrumented_outdir)
