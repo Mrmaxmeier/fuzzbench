@@ -15,13 +15,18 @@
 #
 ################################################################################
 
-pip3 install -r $SRC/mbedtls/scripts/basic.requirements.txt
+# Install the source generators' requirements into the same python that cmake
+# runs them with; the image has more than one, and cmake picks the newest.
+python3 -m pip install -r $SRC/mbedtls/scripts/basic.requirements.txt
 
 # build project
 perl scripts/config.pl set MBEDTLS_PLATFORM_TIME_ALT
 mkdir build
 cd build
-cmake -DENABLE_TESTING=OFF ..
+# This 2022 mbedtls treats warnings as errors, and newer clangs warn about
+# code in it (-Wunterminated-string-initialization).
+cmake -DENABLE_TESTING=OFF -DMBEDTLS_FATAL_WARNINGS=OFF \
+  -DPython3_EXECUTABLE="$(command -v python3)" ..
 # build including fuzzers
 make -j$(nproc) all
 cp programs/fuzz/fuzz_* $OUT/
