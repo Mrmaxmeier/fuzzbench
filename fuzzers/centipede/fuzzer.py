@@ -62,7 +62,13 @@ def run_fuzzer(input_corpus, output_corpus, target_binary, extra_flags=None):
 
     # Seperate out corpus and crash directories as sub-directories of
     # |output_corpus| to avoid conflicts when corpus directory is reloaded.
-    work_dir = os.path.join(output_corpus, 'work-dir')
+    # The work dir goes next to |output_corpus|, not in it: it holds
+    # centipede's own append-only copy of every input it keeps (corpus.*),
+    # which grew to several GB on bloaty. Inside |output_corpus| it was
+    # archived every cycle, and the runner fell hours behind. Its crashes
+    # still land in |output_corpus| through the symlink below.
+    work_dir = os.path.join(os.path.dirname(output_corpus),
+                            'centipede-work-dir')
     work_dir_crash = os.path.join(work_dir, 'crashes')
     crashes_dir = os.path.join(output_corpus, 'crashes')
     output_corpus = os.path.join(output_corpus, 'corpus')
