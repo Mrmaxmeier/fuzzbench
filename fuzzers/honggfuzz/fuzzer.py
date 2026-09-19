@@ -27,6 +27,11 @@ def build():
     os.environ['CC'] = '/honggfuzz/hfuzz_cc/hfuzz-clang'
     os.environ['CXX'] = '/honggfuzz/hfuzz_cc/hfuzz-clang++'
     os.environ['FUZZER_LIB'] = '/honggfuzz/empty_lib.o'
+    # hfuzz-clang links in wrappers for libc functions that glibc may not
+    # have, such as strlcpy. A configure-time link check then finds them while
+    # the headers still don't declare them, and clang 16+ rejects the implicit
+    # declaration (libpcap). Keep that a warning, as it was before.
+    utils.append_flags('CFLAGS', ['-Wno-error=implicit-function-declaration'])
 
     utils.build_benchmark()
 
