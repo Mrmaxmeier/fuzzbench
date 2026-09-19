@@ -185,9 +185,12 @@ def set_compilation_flags(env=None):
     env['CXXFLAGS'] = ''
 
     if get_config_value('type') == 'bug':
+        # Since clang 17, -fsanitize=function checks C too, where casting
+        # function pointers is common practice (php aborts in its own build).
+        # Keep it to C++, as it was when the bug benchmarks were made.
         append_flags('CFLAGS',
                      FUZZING_CFLAGS + SANITIZER_FLAGS +
-                     [BUGS_OPTIMIZATION_LEVEL],
+                     ['-fno-sanitize=function', BUGS_OPTIMIZATION_LEVEL],
                      env=env)
         append_flags('CXXFLAGS',
                      FUZZING_CFLAGS + SANITIZER_FLAGS +

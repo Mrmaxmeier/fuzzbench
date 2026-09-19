@@ -105,7 +105,8 @@ def test_initialize_env_in_environment_with_sanitizer(fs, environ):
         'unreachable,vla-bound,vptr -fno-sanitize-recover=array-bounds,bool,'
         'builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,'
         'null,object-size,return,returns-nonnull-attribute,shift,'
-        'signed-integer-overflow,unreachable,vla-bound,vptr -O1')
+        'signed-integer-overflow,unreachable,vla-bound,vptr '
+        '-fno-sanitize=function -O1')
 
     assert os.getenv('CXXFLAGS') == (
         '-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION '
@@ -147,7 +148,8 @@ def test_initialize_env_in_var_with_sanitizer(fs):
         'unreachable,vla-bound,vptr -fno-sanitize-recover=array-bounds,bool,'
         'builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,'
         'null,object-size,return,returns-nonnull-attribute,shift,'
-        'signed-integer-overflow,unreachable,vla-bound,vptr -O1')
+        'signed-integer-overflow,unreachable,vla-bound,vptr '
+        '-fno-sanitize=function -O1')
     assert env.get('CXXFLAGS') == (
         '-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION '
         '-fsanitize=address -fsanitize=array-bounds,bool,builtin,enum,'
